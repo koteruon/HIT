@@ -3,10 +3,9 @@ import logging
 import os
 
 import torch
-
-from hit.utils.model_serialization import load_state_dict
-from hit.utils.c2_model_loading import load_c2_format
 from hit.structures.memory_pool import MemoryPool
+from hit.utils.c2_model_loading import load_c2_format
+from hit.utils.model_serialization import load_state_dict
 
 
 class Checkpointer(object):
@@ -49,13 +48,14 @@ class Checkpointer(object):
         self.tag_last_checkpoint(save_file)
 
     def load(self, f=None, model_weight_only=False, adjust_scheduler=False, no_head=False):
-        if self.has_checkpoint():
-            # override argument with existing checkpoint
-            f = self.get_checkpoint_file()
         if not f:
-            # no checkpoint could be found
-            self.logger.info("No checkpoint found. Initializing model from scratch")
-            return {}
+            if self.has_checkpoint():
+                # override argument with existing checkpoint
+                f = self.get_checkpoint_file()
+            if not f:
+                # no checkpoint could be found
+                self.logger.info("No checkpoint found. Initializing model from scratch")
+                return {}
         self.logger.info("Loading checkpoint from {}".format(f))
         checkpoint = self._load_file(f)
         self._load_model(checkpoint, no_head)

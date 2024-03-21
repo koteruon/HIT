@@ -1,16 +1,16 @@
 import bisect
 import copy
 
+import hit.config.paths_catalog as paths_catalog
 import torch.utils.data
 from hit.utils.comm import get_world_size
 from hit.utils.IA_helper import has_object
-import hit.config.paths_catalog as paths_catalog
 
 from . import datasets as D
 from . import samplers
-
 from .collate_batch import BatchCollator
-from .transforms import build_transforms, build_object_transforms
+from .transforms import build_object_transforms, build_transforms
+
 
 def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True, object_transforms=None):
     """

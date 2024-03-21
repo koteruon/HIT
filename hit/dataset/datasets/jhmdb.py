@@ -1,18 +1,17 @@
+import json
 import os
-import torch.utils.data as data
-import time
-import torch
-import numpy as np
-from hit.structures.bounding_box import BoxList
-from collections import defaultdict
-from hit.utils.video_decode import av_decode_video
 import re
+import time
+from collections import defaultdict
+
+import numpy as np
+import torch
+import torch.utils.data as data
+from hit.dataset.datasets.iou_calculator import iou
+from hit.structures.bounding_box import BoxList
+from hit.utils.video_decode import av_decode_video
 from PIL import Image
 
-import json
-import numpy as np
-
-from hit.dataset.datasets.iou_calculator import iou
 
 # This is used to avoid pytorch issuse #13246
 class NpInfoDict(object):
@@ -21,21 +20,24 @@ class NpInfoDict(object):
         self.key_arr = np.array(keys, dtype=key_type)
         self.val_arr = np.array([info_dict[k] for k in keys], dtype=value_type)
         # should not be used in dataset __getitem__
-        self._key_idx_map = {k:i for i,k in enumerate(keys)}
+        self._key_idx_map = {k: i for i, k in enumerate(keys)}
+
     def __getitem__(self, idx):
         return self.key_arr[idx], self.val_arr[idx]
+
     def __len__(self):
         return len(self.key_arr)
+
     def convert_key(self, org_key):
         # convert relevant variable whose original value is in the key set.
         # should not be used in __getitem__
         return self._key_idx_map[org_key]
 
+
 # This is used to avoid pytorch issuse #13246
 class NpBoxDict(object):
     def __init__(self, id_to_box_dict, key_list=None, value_types=[]):
         value_fields, value_types = list(zip(*value_types))
-
         # if "keypoints" not in value_fields:
         assert 'bbox' in value_fields
 
@@ -56,26 +58,49 @@ class NpBoxDict(object):
                     value_lists[field].append(box_info[field])
         self.pointer_arr = np.array(pointer_list, dtype=np.int32)
         self.attr_names = np.array(["vfield_" + field for field in value_fields])
-        for field_name, value_type, attr_name in zip(value_fields, value_types, self.attr_names):
-            setattr(self, attr_name, np.array(value_lists[field_name], dtype=value_type))
+        for field_name, value_type, attr_name in zip(
+            value_fields, value_types, self.attr_names
+        ):
+            setattr(
+                self, attr_name, np.array(value_lists[field_name], dtype=value_type)
+            )
 
     def __getitem__(self, idx):
         l_pointer = self.pointer_arr[idx]
         r_pointer = self.pointer_arr[idx + 1]
-        ret_val = [getattr(self, attr_name)[l_pointer:r_pointer] for attr_name in self.attr_names]
+        ret_val = [
+            getattr(self, attr_name)[l_pointer:r_pointer]
+            for attr_name in self.attr_names
+        ]
         return ret_val
 
     def __len__(self):
         return self.length
 
-class DatasetEngine(data.Dataset):
-    def __init__(self, video_root, ann_file, remove_clips_without_annotations, frame_span, box_file=None, eval_file_paths={},
-                 box_thresh=0.0, action_thresh=0.0, transforms=None, object_file=None, object_transforms=None, keypoints_file=None,):
 
+class DatasetEngine(data.Dataset):
+    def __init__(
+        self,
+        video_root,
+        ann_file,
+        remove_clips_without_annotations,
+        frame_span,
+        box_file=None,
+        eval_file_paths={},
+        box_thresh=0.0,
+        action_thresh=0.0,
+        transforms=None,
+        object_file=None,
+        object_transforms=None,
+        keypoints_file=None,
+    ):
         print('loading annotations into memory...')
         tic = time.time()
         json_dict = json.load(open(ann_file, 'r'))
-        assert type(json_dict) == dict, 'annotation file format {} not supported'.format(type(json_dict))
+
+        assert (
+            type(json_dict) == dict
+        ), 'annotation file format {} not supported'.format(type(json_dict))
         print('Done (t={:0.2f}s)'.format(time.time() - tic))
 
         self.video_root = video_root
@@ -91,13 +116,16 @@ class DatasetEngine(data.Dataset):
         if "annotations" in json_dict:
             for ann in json_dict["annotations"]:
                 action_ids = ann["action_ids"]
-                one_hot = np.zeros(22, dtype=np.bool)
+                one_hot = np.zeros(21, dtype=np.bool)
                 one_hot[action_ids] = True
                 packed_act = one_hot[1:]
-                clip2ann[ann["image_id"]].append(dict(bbox=ann["bbox"], packed_act=packed_act))
+                clip2ann[ann["image_id"]].append(
+                    dict(bbox=ann["bbox"], packed_act=packed_act)
+                )
 
         movies_size = {}
         clips_info = {}
+
         for img in json_dict["images"]:
             mov = img["movie"]
             if mov not in movies_size:
@@ -113,48 +141,59 @@ class DatasetEngine(data.Dataset):
             # this is only for validation or testing
             # we use detected boxes, so remove clips without boxes detected.
             imgToBoxes = self.load_box_file(box_file, box_thresh)
-            clip_ids = [
-                img_id
-                for img_id in clip_ids
-                if len(imgToBoxes[img_id]) > 0
-            ]
-            self.det_persons = NpBoxDict(imgToBoxes, clip_ids,
-                                         value_types=[("bbox", np.float32), ("score", np.float32)])
+            clip_ids = [img_id for img_id in clip_ids if len(imgToBoxes[img_id]) > 0]
+            self.det_persons = NpBoxDict(
+                imgToBoxes,
+                clip_ids,
+                value_types=[("bbox", np.float32), ("score", np.float32)],
+            )
         else:
             self.det_persons = None
 
         if object_file:
             imgToObjects = self.load_box_file(object_file)
-            self.det_objects = NpBoxDict(imgToObjects, clip_ids,
-                                         value_types=[("bbox", np.float32), ("score", np.float32)])
+            self.det_objects = NpBoxDict(
+                imgToObjects,
+                clip_ids,
+                value_types=[("bbox", np.float32), ("score", np.float32)],
+            )
         else:
             self.det_objects = None
 
         if keypoints_file:
             imgToBoxes = self.load_box_file(keypoints_file)
-         
-            self.det_keypoints = NpBoxDict(imgToBoxes, clip_ids,
-                                         value_types=[("keypoints", np.float32), ("bbox", np.float32), ("score", np.float32)])
+
+            self.det_keypoints = NpBoxDict(
+                imgToBoxes,
+                clip_ids,
+                value_types=[
+                    ("keypoints", np.float32),
+                    ("bbox", np.float32),
+                    ("score", np.float32),
+                ],
+            )
         else:
             self.det_keypoints = None
-
 
         if object_transforms:
             self.object_transforms = object_transforms
         else:
             self.object_transforms = None
 
-        self.anns = NpBoxDict(clip2ann, clip_ids, value_types=[("bbox", np.float32), ("packed_act", np.uint8)])
+        self.anns = NpBoxDict(
+            clip2ann,
+            clip_ids,
+            value_types=[("bbox", np.float32), ("packed_act", np.uint8)],
+        )
 
         clips_info = {
-            clip_id:
-                [
-                    self.movie_info.convert_key(clips_info[clip_id][0]),
-                    clips_info[clip_id][1]
-                ] for clip_id in clip_ids
+            clip_id: [
+                self.movie_info.convert_key(clips_info[clip_id][0]),
+                clips_info[clip_id][1],
+            ]
+            for clip_id in clip_ids
         }
         self.clips_info = NpInfoDict(clips_info, value_type=np.int32)
-
 
     def __getitem__(self, idx):
         _, clip_info = self.clips_info[idx]
@@ -173,12 +212,15 @@ class DatasetEngine(data.Dataset):
 
             boxes, packed_act = self.anns[idx]
 
-            boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)  # guard against no boxes
+            boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(
+                -1, 4
+            )  # guard against no boxes
             boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xyxy")
 
             one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
 
             boxes.add_field("labels", one_hot_label)
+
         else:
             boxes, box_score = self.det_persons[idx]
             boxes_tensor = torch.as_tensor(boxes).reshape(-1, 4)
@@ -186,6 +228,7 @@ class DatasetEngine(data.Dataset):
             boxes.add_field("det_score", torch.as_tensor(box_score))
 
         boxes = boxes.clip_to_image(remove_empty=True)
+        # boxes = boxes.clip_to_image(remove_empty=False)
 
         # Get boxes before the transform
         # To calculate correct IoU
@@ -203,6 +246,7 @@ class DatasetEngine(data.Dataset):
             if self.object_transforms is not None:
                 objects = self.object_transforms(objects, boxes, transform_randoms)
             keypoints = None
+
             if self.det_keypoints is not None:
                 keypoints = self.get_keypoints(idx, im_w, im_h, orig_boxes)
             if self.object_transforms is not None:
@@ -232,13 +276,17 @@ class DatasetEngine(data.Dataset):
             obj_boxes.add_field("scores", scores)
 
         return obj_boxes
-    
+
     def get_keypoints(self, idx, im_w, im_h, orig_boxes):
         kpts_boxes = self.return_null_box(im_w, im_h)
         keypoints, boxes, box_score = self.det_keypoints[idx]
 
         if len(box_score) == 0:
-            kpts_boxes = BoxList(torch.zeros((orig_boxes.shape[0], 4)).reshape(-1, 4), (im_w, im_h), mode="xyxy")
+            kpts_boxes = BoxList(
+                torch.zeros((orig_boxes.shape[0], 4)).reshape(-1, 4),
+                (im_w, im_h),
+                mode="xyxy",
+            )
             kpts_boxes.add_field("keypoints", np.zeros((orig_boxes.shape[0], 17, 3)))
             return kpts_boxes
 
@@ -258,7 +306,6 @@ class DatasetEngine(data.Dataset):
         kpts_boxes.add_field("keypoints", keypoints)
 
         return kpts_boxes
-
 
     def get_video_info(self, index):
         _, clip_info = self.clips_info[index]
@@ -289,45 +336,54 @@ class DatasetEngine(data.Dataset):
     def _decode_video_data(self, dirname, timestamp):
         # decode target video data from segment per second.
         video_folder = os.path.join(self.video_root, dirname)
-        right_span = self.frame_span//2
+        right_span = self.frame_span // 2
         left_span = self.frame_span - right_span
 
-        #load right
+        # load right
         cur_t = timestamp
         right_frames = []
         folder_list = np.array(os.listdir(video_folder))
-    
+
         while cur_t < folder_list.shape[0]:
             if (cur_t - timestamp) > right_span:
                 break
-            video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
+            ## JHMDB
+            # video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
+            ## AVA
+            video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
             try:
                 with Image.open(video_path) as img:
                     right_frames.append(img.convert('RGB'))
             except BaseException as e:
-                raise RuntimeError('Caught "{}" when loading {}'.format(str(e), video_path))
+                raise RuntimeError(
+                    'Caught "{}" when loading {}'.format(str(e), video_path)
+                )
             cur_t += 1
-            
-        #load left
-        cur_t = timestamp-1
+
+        # load left
+        cur_t = timestamp - 1
         left_frames = []
         while cur_t > 0:
             if (timestamp - cur_t) > left_span:
                 break
-            video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
+            ## JHMDB
+            # video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
+            ## AVA
+            video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
             # frames = cv2_decode_video(video_path)
             try:
                 with Image.open(video_path) as img:
                     left_frames.append(img.convert('RGB'))
             except BaseException as e:
-                raise RuntimeError('Caught "{}" when loading {}'.format(str(e), video_path))
+                raise RuntimeError(
+                    'Caught "{}" when loading {}'.format(str(e), video_path)
+                )
             cur_t -= 1
 
-
         frames = left_frames + right_frames
+
         video_data = np.stack(frames)
         return video_data
-
 
     def __len__(self):
         return len(self.clips_info)
@@ -337,5 +393,7 @@ class DatasetEngine(data.Dataset):
         fmt_str += '    Number of datapoints: {}\n'.format(self.__len__())
         fmt_str += '    Video Root Location: {}\n'.format(self.video_root)
         tmp = '    Transforms (if any): '
-        fmt_str += '{0}{1}\n'.format(tmp, self.transforms.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
+        fmt_str += '{0}{1}\n'.format(
+            tmp, self.transforms.__repr__().replace('\n', '\n' + ' ' * len(tmp))
+        )
         return fmt_str

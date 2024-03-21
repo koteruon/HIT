@@ -3,11 +3,10 @@ import logging
 import time
 
 import torch
-
-from hit.utils.metric_logger import MetricLogger
 from hit.engine.inference import inference
-from hit.utils.comm import synchronize, reduce_dict, all_gather
 from hit.structures.memory_pool import MemoryPool
+from hit.utils.comm import all_gather, reduce_dict, synchronize
+from hit.utils.metric_logger import MetricLogger
 
 
 def do_train(

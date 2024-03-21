@@ -1,15 +1,15 @@
 # modified from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/engine/inference.py
+import datetime
 import logging
 import os
+import time
 
 import torch
-from tqdm import tqdm
-import time
-import datetime
-
 from hit.dataset.datasets.evaluation import evaluate
-from hit.utils.comm import get_rank, is_main_process, all_gather, gather, synchronize, get_world_size
 from hit.structures.memory_pool import MemoryPool
+from hit.utils.comm import (all_gather, gather, get_rank, get_world_size,
+                            is_main_process, synchronize)
+from tqdm import tqdm
 
 
 def compute_on_dataset_1stage(model, data_loader, device):
@@ -56,7 +56,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
     batch_info_list = [None]*loader_len
     logger.info("Stage 1: extracting clip features.")
     start_time = time.time()
-    
+
 
     for i, batch in enumerate(tqdm(data_loader, **extra_args)):
         slow_clips, fast_clips, boxes, objects, keypoints, extras, video_ids = batch
@@ -78,7 +78,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
         # store other information in list, for further inference
         batch_info_list[i] = (movie_ids, timestamps, video_ids, object_feature, hand_feature, poses_feature, [b.extra_fields['det_score'] for b in boxes])
         # break
-    
+
     # gather feature pools from different ranks
     synchronize()
     total_time = time.time() - start_time
