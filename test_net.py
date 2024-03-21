@@ -1,5 +1,7 @@
 import argparse
 import os
+#pytorch issuse #973
+import resource
 
 import torch
 from hit.config import cfg
@@ -7,14 +9,12 @@ from hit.dataset import make_data_loader
 from hit.engine.inference import inference
 from hit.modeling.detector import build_detection_model
 from hit.utils.checkpoint import ActionCheckpointer
-from torch.utils.collect_env import get_pretty_env_info
-from hit.utils.comm import synchronize, get_rank
+from hit.utils.comm import get_rank, synchronize
 from hit.utils.IA_helper import has_memory
 from hit.utils.logger import setup_logger
-#pytorch issuse #973
-import resource
+from torch.utils.collect_env import get_pretty_env_info
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (rlimit[1], rlimit[1]))
 
@@ -46,7 +46,7 @@ def main():
         )
 
     # Merge config file.
-    
+
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()

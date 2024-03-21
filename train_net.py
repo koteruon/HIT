@@ -4,26 +4,25 @@ Basic training script for PyTorch
 
 import argparse
 import os
-
-import torch
-from torch.utils.collect_env import get_pretty_env_info
-from hit.config import cfg
-from hit.dataset import make_data_loader
-from hit.solver import make_lr_scheduler, make_optimizer
-from hit.engine.inference import inference
-from hit.engine.trainer import do_train
-from hit.modeling.detector import build_detection_model
-from hit.utils.checkpoint import ActionCheckpointer
-from hit.utils.comm import synchronize, get_rank
-from hit.utils.logger import setup_logger, setup_tblogger
-from hit.utils.random_seed import set_seed
-from hit.utils.IA_helper import has_memory
-from hit.structures.memory_pool import MemoryPool
 # pytorch issuse #973
 import resource
 
+import torch
+from hit.config import cfg
+from hit.dataset import make_data_loader
+from hit.engine.inference import inference
+from hit.engine.trainer import do_train
+from hit.modeling.detector import build_detection_model
+from hit.solver import make_lr_scheduler, make_optimizer
+from hit.structures.memory_pool import MemoryPool
+from hit.utils.checkpoint import ActionCheckpointer
+from hit.utils.comm import get_rank, synchronize
+from hit.utils.IA_helper import has_memory
+from hit.utils.logger import setup_logger, setup_tblogger
+from hit.utils.random_seed import set_seed
+from torch.utils.collect_env import get_pretty_env_info
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # CUDA_LAUNCH_BLOCKING=1
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (rlimit[1], rlimit[1]))
@@ -150,7 +149,7 @@ def main():
         dest="skip_val",
         help="Do not validate during training",
         action="store_true",
-        # 
+        #
         default=True,
     )
     parser.add_argument(
@@ -158,7 +157,7 @@ def main():
         dest="transfer_weight",
         help="Transfer weight from a pretrained model",
         action="store_true",
-        # 
+        #
         default=True
     )
     parser.add_argument(
@@ -172,7 +171,7 @@ def main():
         dest="no_head",
         help="Not load the head layer parameters from weight file",
         action="store_true",
-        # 
+        #
         default=True
     )
     parser.add_argument(
@@ -180,7 +179,7 @@ def main():
         action='store_true',
         dest='tfboard',
         help='Use tensorboard to log stats',
-        # 
+        #
         default=True
     )
     parser.add_argument(
