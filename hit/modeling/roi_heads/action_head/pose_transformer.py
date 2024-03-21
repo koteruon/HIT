@@ -1,12 +1,12 @@
-import math
 import logging
-from functools import partial
+import math
 from collections import OrderedDict
-from einops import rearrange, repeat
+from functools import partial
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange, repeat
 
 
 class Mlp(nn.Module):
@@ -144,7 +144,6 @@ class PoseTransformer(nn.Module):
         x = self.pos_drop(x)
 
         for blk in self.Spatial_blocks:
-            
             x = blk(x)
 
         x = self.Spatial_norm(x)
@@ -179,10 +178,10 @@ class PoseTransformer(nn.Module):
         # x = x.view(b, 1, p, -1)
 
         return x
-    
-    
+
+
 '''
-# let spatial/temporal encoder have the same input dimension 
+# let spatial/temporal encoder have the same input dimension
         self.depth = depth
         dm = 512 # dm is hyperparameter
         embed_dim_ratio = dm

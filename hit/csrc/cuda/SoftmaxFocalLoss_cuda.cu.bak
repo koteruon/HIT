@@ -144,7 +144,7 @@ std::tuple<at::Tensor, at::Tensor> SoftmaxFocalLoss_forward_cuda(
   auto P = at::empty({num_samples, num_classes}, logits.options());
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-  dim3 grid(std::min(((int)losses_size + 512 - 1 ) / 512, 4096));
+  dim3 grid(std::min(THCCeilDiv(losses_size, 512L), 4096L));
   dim3 block(512);
 
   if (losses.numel() == 0) {
@@ -200,8 +200,8 @@ at::Tensor SoftmaxFocalLoss_backward_cuda(
   auto d_logits_size = static_cast<long>(num_samples) * num_classes;
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-  dim3 grid1(std::min(((int)buff_size + 512 - 1 ) / 512, 4096));
-  dim3 grid2(std::min(((int)d_logits_size + 512 - 1) / 512, 4096));
+  dim3 grid1(std::min(THCCeilDiv(buff_size, 512L), 4096L));
+  dim3 grid2(std::min(THCCeilDiv(d_logits_size, 512L), 4096L));
   dim3 block(512);
 
   if (d_logits.numel() == 0) {

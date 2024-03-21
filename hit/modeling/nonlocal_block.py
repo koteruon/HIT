@@ -21,7 +21,7 @@ class NLBlock(nn.Module):
         self.scale_value = dim_inner ** (-0.5)
         self.dim_inner = dim_inner
 
-        self.theta = nn.Conv3d(dim_in, dim_inner, 1, bias=bias)
+        self.theta = nn.Conv3d(in_channels=dim_in, out_channels= dim_inner, kernel_size= 1, bias=bias)
         nn.init.normal_(self.theta.weight, std=init_std)
         if bias:
             nn.init.constant_(self.theta.bias, 0)
@@ -30,12 +30,12 @@ class NLBlock(nn.Module):
             self.maxpool = nn.MaxPool3d((1, pool_stride, pool_stride),
                                         stride=(1, pool_stride, pool_stride))
 
-        self.phi = nn.Conv3d(dim_in, dim_inner, 1, bias=bias)
+        self.phi = nn.Conv3d(in_channels=dim_in, out_channels= dim_inner, kernel_size= 1, bias=bias)
         nn.init.normal_(self.phi.weight, std=init_std)
         if bias:
             nn.init.constant_(self.phi.bias, 0)
 
-        self.g = nn.Conv3d(dim_in, dim_inner, 1, bias=bias)
+        self.g = nn.Conv3d(in_channels=dim_in, out_channels= dim_inner, kernel_size= 1, bias=bias)
         nn.init.normal_(self.g.weight, std=init_std)
         if bias:
             nn.init.constant_(self.g.bias, 0)
@@ -43,7 +43,7 @@ class NLBlock(nn.Module):
         if nl_cfg.USE_SOFTMAX:
             self.softmax = nn.Softmax(dim=2)
 
-        self.out = nn.Conv3d(dim_inner, dim_out, 1, bias=bias)
+        self.out = nn.Conv3d(in_channels=dim_inner, out_channels= dim_out, kernel_size= 1, bias=bias)
         if nl_cfg.USE_ZERO_INIT_CONV:
             nn.init.constant_(self.out.weight, 0)
         else:

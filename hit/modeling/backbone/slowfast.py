@@ -1,10 +1,10 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+
 import torch
 import torch.nn as nn
-
-from hit.modeling.common_blocks import ResNLBlock
 from hit.layers import FrozenBatchNorm3d
+from hit.modeling.common_blocks import ResNLBlock
 
 
 def get_slow_model_cfg(cfg):
@@ -92,7 +92,7 @@ def get_fast_model_cfg(cfg):
 class LateralBlock(nn.Module):
     def __init__(self, conv_dim, alpha):
         super(LateralBlock, self).__init__()
-        self.conv = nn.Conv3d(conv_dim, conv_dim * 2, kernel_size=(5, 1, 1), stride=(alpha, 1, 1),
+        self.conv = nn.Conv3d(in_channels=conv_dim, out_channels= conv_dim * 2, kernel_size=(5, 1, 1), stride=(alpha, 1, 1),
                               padding=(2, 0, 0), bias=True)
         nn.init.kaiming_normal_(self.conv.weight)
         nn.init.constant_(self.conv.bias, 0.0)
@@ -125,7 +125,7 @@ class FastPath(nn.Module):
             conv4_nl_mod = 1000
         self.c2_mapping = None
 
-        self.conv1 = nn.Conv3d(3, conv_dims[0], (1 + use_temp_convs_set[0][0] * 2, 7, 7),
+        self.conv1 = nn.Conv3d(in_channels=3, out_channels= conv_dims[0], kernel_size= (1 + use_temp_convs_set[0][0] * 2, 7, 7),
                                stride=(temp_strides_set[0][0], 2, 2),
                                padding=(use_temp_convs_set[0][0], 3, 3), bias=False)
         nn.init.kaiming_normal_(self.conv1.weight)
@@ -138,7 +138,7 @@ class FastPath(nn.Module):
             self.bn1 = nn.BatchNorm3d(conv_dims[0], eps=cfg.MODEL.BACKBONE.BN_EPSILON,
                                       momentum=cfg.MODEL.BACKBONE.BN_MOMENTUM)
 
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
 
         self.res_nl1 = ResNLBlock(cfg, conv_dims[0], conv_dims[1], stride=1, num_blocks=n1, dim_inner=dim_inner,
@@ -212,7 +212,7 @@ class SlowPath(nn.Module):
             conv4_nl_mod = 1000
         self.c2_mapping = None
 
-        self.conv1 = nn.Conv3d(3, conv_dims[0], (1 + use_temp_convs_set[0][0] * 2, 7, 7),
+        self.conv1 = nn.Conv3d(in_channels=3, out_channels= conv_dims[0], kernel_size= (1 + use_temp_convs_set[0][0] * 2, 7, 7),
                                stride=(temp_strides_set[0][0], 2, 2),
                                padding=(use_temp_convs_set[0][0], 3, 3), bias=False)
         nn.init.kaiming_normal_(self.conv1.weight)
@@ -225,7 +225,7 @@ class SlowPath(nn.Module):
             self.bn1 = nn.BatchNorm3d(conv_dims[0], eps=cfg.MODEL.BACKBONE.BN_EPSILON,
                                       momentum=cfg.MODEL.BACKBONE.BN_MOMENTUM)
 
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
 
         self.res_nl1 = ResNLBlock(cfg, conv_dims[0], conv_dims[1], stride=1, num_blocks=n1, dim_inner=dim_inner,
@@ -247,13 +247,13 @@ class SlowPath(nn.Module):
                                   dim_inner=dim_inner * 8, use_temp_convs=use_temp_convs_set[4],
                                   temp_strides=temp_strides_set[4], lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE,
                                   dilation=2)
-        
+
     def forward(self, x, lateral_connection=None):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
         out = self.maxpool1(out)
-        
+
         if lateral_connection:
             out = torch.cat([out, lateral_connection[0]], dim=1)
 
