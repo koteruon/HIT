@@ -1,0 +1,88 @@
+MODEL:
+  # WEIGHT: "data/models/pretrained_models/slowfast_r50_4x16x1_kinetics400.pth"
+  WEIGHT: "data/models/pretrained_models/SlowFast-ResNet50-4x16.pth"
+  # WEIGHT: "data/models/pretrained_models/SlowFast-ResNet101-8x8.pth"
+  BACKBONE:
+    CONV_BODY: "Slowfast-Resnet50"
+    FROZEN_BN: True
+    SLOWFAST:
+      BETA: 0.125
+      LATERAL: "tconv"
+      SLOW:
+        ACTIVE: True
+        CONV3_NONLOCAL: False
+        CONV4_NONLOCAL: False
+      FAST:
+        ACTIVE: True
+        CONV3_NONLOCAL: False
+        CONV4_NONLOCAL: False
+  NONLOCAL:
+    USE_ZERO_INIT_CONV: False
+    BN_INIT_GAMMA: 0.0
+    FROZEN_BN: True
+  ROI_ACTION_HEAD:
+    FEATURE_EXTRACTOR: "2MLPFeatureExtractor"
+    POOLER_TYPE: "align3d"
+    MEAN_BEFORE_POOLER: True
+    POOLER_RESOLUTION: 7
+    POOLER_SCALE: 0.0625
+    POOLER_SAMPLING_RATIO: 0
+    NUM_CLASSES: 4
+    PROPOSAL_PER_CLIP: 10
+    DROPOUT_RATE: 0.2
+    NUM_PERSON_MOVEMENT_CLASSES: 0
+    NUM_OBJECT_MANIPULATION_CLASSES: 4
+    NUM_PERSON_INTERACTION_CLASSES: 0
+    POSE_LOSS_WEIGHT: 0.0
+    OBJECT_LOSS_WEIGHT: 1.0
+    PERSON_LOSS_WEIGHT: 0.0
+  HIT_STRUCTURE:
+    ACTIVE: True
+    STRUCTURE: "hitnet"
+    DROPOUT: 0.2
+    FUSION: "add"
+    TEMPORAL_POSITION: True
+    USE_ZERO_INIT_CONV: True
+    LAYER_NORM: True
+    MAX_PERSON: 4
+    MAX_HAND: 8
+    MAX_OBJECT: 4
+    MAX_PER_SEC: 5
+    DIM_INNER: 1024
+    DIM_OUT: 2304
+    I_BLOCK_LIST: [ "P", "O", "H", "M", "P", "O", "H", "M", ]
+INPUT:
+  # MIN_SIZE_TRAIN: 288
+  # MAX_SIZE_TRAIN: 512
+  # MIN_SIZE_TEST: 288
+  # MAX_SIZE_TEST: 512
+  FRAME_NUM: 32
+  FRAME_SAMPLE_RATE: 1
+  TAU: 16
+  ALPHA: 8
+  SLOW_JITTER: True
+  COLOR_JITTER: True
+DATASETS:
+  TRAIN: ("table_tennis_train",)
+  # VALID: ("table_tennis_valid",)
+  TEST: ("table_tennis_test",)
+DATALOADER:
+  NUM_WORKERS: 4
+  SIZE_DIVISIBILITY: 16
+SOLVER:
+  BASE_LR: 0.0015
+  WARMUP_FACTOR: 0.25
+  BIAS_LR_FACTOR: 2
+  IA_LR_FACTOR: 10.0
+  WEIGHT_DECAY: 1e-7
+  STEPS: (4000, 6000)
+  WARMUP_ITERS: 2000
+  MAX_ITER: 20000
+  CHECKPOINT_PERIOD: 5000
+  EVAL_PERIOD: 1000
+  VIDEOS_PER_BATCH: 12
+TEST:
+  BOX_THRESH: 0.5
+  ACTION_THRESH: 0.25
+  VIDEOS_PER_BATCH: 12
+OUTPUT_DIR: "/home/chaoen/yoloNhit_calvin/HIT/data/output/hitnet/model_R50_M32_FPS30_4classes"
