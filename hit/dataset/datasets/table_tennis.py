@@ -235,8 +235,6 @@ class DatasetEngine(data.Dataset):
 
             # Decode the packed bits from uint8 to one hot, since AVA has 80 classes,
             # it can be exactly denoted with 10 bytes, otherwise we may need to discard some bits.
-            # one_hot_label = np.unpackbits(packed_act, axis=1)
-            # one_hot_label = torch.as_tensor(one_hot_label, dtype=torch.uint8)
             one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
 
             boxes.add_field("labels", one_hot_label)
@@ -373,8 +371,6 @@ class DatasetEngine(data.Dataset):
         cur_t = timestamp
         right_frames = []
         while len(right_frames) < right_span and cur_t < total_videos:
-            # video_path = os.path.join(video_folder, "{}.mp4".format(cur_t))
-            # frames = cv2_decode_video(video_path)
             video_path = os.path.join(video_folder, "{}.jpg".format(cur_t))
             frames = image_decode(video_path)
             if len(frames) == 0:
@@ -382,65 +378,16 @@ class DatasetEngine(data.Dataset):
             right_frames = right_frames + frames
             cur_t += 1
 
-        # if len(right_frames) < right_span:
-        #     counter = right_span - len(right_frames)
-        #     video_path = os.path.join(video_folder, "{}.mp4".format(total_videos-1))
-        #     frames = cv2_decode_one_image(video_path, cointer=counter, flag='last')
-        #     right_frames = right_frames + frames
-
         # load left
         cur_t = timestamp - 1
         left_frames = []
         while len(left_frames) < left_span and cur_t >= 0:
-            # video_path = os.path.join(video_folder, "{}.mp4".format(cur_t))
-            # frames = cv2_decode_video(video_path)
             video_path = os.path.join(video_folder, "{}.jpg".format(cur_t))
             frames = image_decode(video_path)
             if len(frames) == 0:
                 raise RuntimeError("Video {} cannot be decoded.".format(video_path))
             left_frames = frames + left_frames
             cur_t -= 1
-
-        # if len(left_frames) < left_span:
-        #     counter = left_span - len(left_frames)
-        #     video_path = os.path.join(video_folder, "{}.mp4".format(0))
-        #     frames = cv2_decode_one_image(video_path, counter=counter, flag='first')
-        #     left_frames = frames + left_frames
-
-        # # load right
-        # cur_t = timestamp
-        # right_frames = []
-        # folder_list = np.array(os.listdir(video_folder))
-
-        # while cur_t < folder_list.shape[0]:
-        #     if (cur_t - timestamp) > right_span:
-        #         break
-        #     video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
-        #     try:
-        #         with Image.open(video_path) as img:
-        #             right_frames.append(img.convert('RGB'))
-        #     except BaseException as e:
-        #         raise RuntimeError(
-        #             'Caught "{}" when loading {}'.format(str(e), video_path)
-        #         )
-        #     cur_t += 1
-
-        # # load left
-        # cur_t = timestamp - 1
-        # left_frames = []
-        # while cur_t > 0:
-        #     if (timestamp - cur_t) > left_span:
-        #         break
-        #     video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
-        #     # frames = cv2_decode_video(video_path)
-        #     try:
-        #         with Image.open(video_path) as img:
-        #             left_frames.append(img.convert('RGB'))
-        #     except BaseException as e:
-        #         raise RuntimeError(
-        #             'Caught "{}" when loading {}'.format(str(e), video_path)
-        #         )
-        #     cur_t -= 1
 
         # adjust key frame to center, usually no need
         min_frame_num = min(len(left_frames), len(right_frames))
@@ -451,8 +398,6 @@ class DatasetEngine(data.Dataset):
                 frames = left_frames[-1:] # 最後一個frame
         else:
             frames = left_frames[-min_frame_num:] + right_frames[:min_frame_num]
-
-        # frames = left_frames + right_frames
 
         video_data = np.stack(frames)
 
