@@ -1,14 +1,13 @@
 import torch
+from hit.modeling.utils import prepare_pooled_feature
+from hit.structures.bounding_box import BoxList
+from hit.utils.comm import all_reduce
 
-from .roi_action_feature_extractor import make_roi_action_feature_extractor
-from .roi_action_predictors import make_roi_action_predictor
 from .inference import make_roi_action_post_processor
 from .loss import make_roi_action_loss_evaluator
 from .metric import make_roi_action_accuracy_evaluator
-from hit.modeling.utils import prepare_pooled_feature
-from hit.utils.comm import all_reduce
-
-from hit.structures.bounding_box import BoxList
+from .roi_action_feature_extractor import make_roi_action_feature_extractor
+from .roi_action_predictors import make_roi_action_predictor
 
 
 class ROIActionHead(torch.nn.Module):
@@ -41,7 +40,9 @@ class ROIActionHead(torch.nn.Module):
         else:
             proposals = [box.extend(self.test_ext) for box in boxes]
 
-        x, x_pooled, x_objects, x_keypoints, x_pose = self.feature_extractor(slow_features, fast_features, proposals, objects, keypoints, extras, part_forward)
+        x, x_pooled, x_objects, x_keypoints, x_pose = self.feature_extractor(
+            slow_features, fast_features, proposals, objects, keypoints, extras, part_forward
+        )
 
         if part_forward == 0:
             pooled_feature = prepare_pooled_feature(x_pooled, boxes)
@@ -51,15 +52,14 @@ class ROIActionHead(torch.nn.Module):
                 object_pooled_feature = prepare_pooled_feature(x_objects, objects)
             if x_keypoints is None:
                 keypoints_pooled_feature = None
-            else: 
-                split_kpts = keypoints 
+            else:
+                split_kpts = keypoints
                 keypoints_pooled_feature = prepare_pooled_feature(x_keypoints, split_kpts)
-                
+
             if x_pose is None:
                 pose_pooled_feature = None
             else:
                 pose_pooled_feature = prepare_pooled_feature(x_pose, keypoints)
-
 
             return [pooled_feature, object_pooled_feature, keypoints_pooled_feature, pose_pooled_feature], {}, {}, {}
 
@@ -74,11 +74,14 @@ class ROIActionHead(torch.nn.Module):
         all_reduce(box_num, average=True)
 
         loss_dict, loss_weight = self.loss_evaluator(
-            [action_logits], box_num.item(),
+            [action_logits],
+            box_num.item(),
         )
 
         metric_dict = self.accuracy_evaluator(
-            [action_logits], proposals, box_num.item(),
+            [action_logits],
+            proposals,
+            box_num.item(),
         )
 
         pooled_feature = prepare_pooled_feature(x_pooled, proposals)
@@ -91,12 +94,11 @@ class ROIActionHead(torch.nn.Module):
         else:
             split_kpts = keypoints
             keypoints_pooled_feature = prepare_pooled_feature(x_keypoints, split_kpts)
-        
+
         if self.training:
             pose_pooled_feature = prepare_pooled_feature(x_pose, keypoints)
-        if part_forward==1:
+        if part_forward == 1:
             pose_pooled_feature = prepare_pooled_feature(x_pose, keypoints[1])
-                 
 
         return (
             [pooled_feature, object_pooled_feature, keypoints_pooled_feature, pose_pooled_feature],
@@ -111,7 +113,7 @@ class ROIActionHead(torch.nn.Module):
             if m_child.state_dict() and hasattr(m_child, "c2_weight_mapping"):
                 child_map = m_child.c2_weight_mapping()
                 for key, val in child_map.items():
-                    new_key = name + '.' + key
+                    new_key = name + "." + key
                     weight_map[new_key] = val
         return weight_map
 

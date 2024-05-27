@@ -12,12 +12,14 @@ class ActionDetector(nn.Module):
 
     def forward(self, slow_video, fast_video, boxes, objects=None, keypoints=None, extras={}, part_forward=-1):
 
-        if part_forward==1:
+        if part_forward == 1:
             slow_features = fast_features = None
         else:
             slow_features, fast_features = self.backbone(slow_video, fast_video)
 
-        result, detector_losses, loss_weight, detector_metrics = self.roi_heads(slow_features, fast_features, boxes, objects, keypoints, extras, part_forward)
+        result, detector_losses, loss_weight, detector_metrics = self.roi_heads(
+            slow_features, fast_features, boxes, objects, keypoints, extras, part_forward
+        )
 
         if self.training:
             return detector_losses, loss_weight, detector_metrics, result
@@ -31,10 +33,11 @@ class ActionDetector(nn.Module):
                 if m_child.state_dict() and hasattr(m_child, "c2_weight_mapping"):
                     child_map = m_child.c2_weight_mapping()
                     for key, val in child_map.items():
-                        new_key = name + '.' + key
+                        new_key = name + "." + key
                         weight_map[new_key] = val
             self.c2_mapping = weight_map
         return self.c2_mapping
+
 
 def build_detection_model(cfg):
     return ActionDetector(cfg)

@@ -1,5 +1,4 @@
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import torch
 import torch.nn as nn
@@ -8,8 +7,8 @@ from hit.modeling.common_blocks import ResNLBlock
 
 
 def get_slow_model_cfg(cfg):
-    backbone_strs = cfg.MODEL.BACKBONE.CONV_BODY.split('-')[1:]
-    error_msg = 'Model backbone {} is not supported.'.format(cfg.MODEL.BACKBONE.CONV_BODY)
+    backbone_strs = cfg.MODEL.BACKBONE.CONV_BODY.split("-")[1:]
+    error_msg = "Model backbone {} is not supported.".format(cfg.MODEL.BACKBONE.CONV_BODY)
 
     use_temp_convs_1 = [0]
     temp_strides_1 = [1]
@@ -26,16 +25,20 @@ def get_slow_model_cfg(cfg):
 
     slow_stride = cfg.INPUT.TAU
     avg_pool_stride = int(cfg.INPUT.FRAME_NUM / slow_stride)
-    if backbone_strs[0] == 'Resnet50':
+    if backbone_strs[0] == "Resnet50":
         block_config = (3, 4, 6, 3)
 
         use_temp_convs_4 = [1, 1, 1, 1, 1, 1]
         temp_strides_4 = [1, 1, 1, 1, 1, 1]
-    elif backbone_strs[0] == 'Resnet101':
+    elif backbone_strs[0] == "Resnet101":
         block_config = (3, 4, 23, 3)
 
-        use_temp_convs_4 = [1, ] * 23
-        temp_strides_4 = [1, ] * 23
+        use_temp_convs_4 = [
+            1,
+        ] * 23
+        temp_strides_4 = [
+            1,
+        ] * 23
     else:
         raise KeyError(error_msg)
 
@@ -49,8 +52,8 @@ def get_slow_model_cfg(cfg):
 
 
 def get_fast_model_cfg(cfg):
-    backbone_strs = cfg.MODEL.BACKBONE.CONV_BODY.split('-')[1:]
-    error_msg = 'Model backbone {} is not supported.'.format(cfg.MODEL.BACKBONE.CONV_BODY)
+    backbone_strs = cfg.MODEL.BACKBONE.CONV_BODY.split("-")[1:]
+    error_msg = "Model backbone {} is not supported.".format(cfg.MODEL.BACKBONE.CONV_BODY)
 
     use_temp_convs_1 = [2]
     temp_strides_1 = [1]
@@ -68,16 +71,20 @@ def get_fast_model_cfg(cfg):
     fast_stride = cfg.INPUT.TAU // cfg.INPUT.ALPHA
     avg_pool_stride = int(cfg.INPUT.FRAME_NUM / fast_stride)
 
-    if backbone_strs[0] == 'Resnet50':
+    if backbone_strs[0] == "Resnet50":
         block_config = (3, 4, 6, 3)
 
         use_temp_convs_4 = [1, 1, 1, 1, 1, 1]
         temp_strides_4 = [1, 1, 1, 1, 1, 1]
-    elif backbone_strs[0] == 'Resnet101':
+    elif backbone_strs[0] == "Resnet101":
         block_config = (3, 4, 23, 3)
 
-        use_temp_convs_4 = [1, ] * 23
-        temp_strides_4 = [1, ] * 23
+        use_temp_convs_4 = [
+            1,
+        ] * 23
+        temp_strides_4 = [
+            1,
+        ] * 23
     else:
         raise KeyError(error_msg)
 
@@ -89,11 +96,18 @@ def get_fast_model_cfg(cfg):
     pool_strides_set = [max_pool_stride_1, avg_pool_stride]
     return block_config, use_temp_convs_set, temp_strides_set, pool_strides_set
 
+
 class LateralBlock(nn.Module):
     def __init__(self, conv_dim, alpha):
         super(LateralBlock, self).__init__()
-        self.conv = nn.Conv3d(in_channels=conv_dim, out_channels= conv_dim * 2, kernel_size=(5, 1, 1), stride=(alpha, 1, 1),
-                              padding=(2, 0, 0), bias=True)
+        self.conv = nn.Conv3d(
+            in_channels=conv_dim,
+            out_channels=conv_dim * 2,
+            kernel_size=(5, 1, 1),
+            stride=(alpha, 1, 1),
+            padding=(2, 0, 0),
+            bias=True,
+        )
         nn.init.kaiming_normal_(self.conv.weight)
         nn.init.constant_(self.conv.bias, 0.0)
 
@@ -125,9 +139,14 @@ class FastPath(nn.Module):
             conv4_nl_mod = 1000
         self.c2_mapping = None
 
-        self.conv1 = nn.Conv3d(in_channels=3, out_channels= conv_dims[0], kernel_size= (1 + use_temp_convs_set[0][0] * 2, 7, 7),
-                               stride=(temp_strides_set[0][0], 2, 2),
-                               padding=(use_temp_convs_set[0][0], 3, 3), bias=False)
+        self.conv1 = nn.Conv3d(
+            in_channels=3,
+            out_channels=conv_dims[0],
+            kernel_size=(1 + use_temp_convs_set[0][0] * 2, 7, 7),
+            stride=(temp_strides_set[0][0], 2, 2),
+            padding=(use_temp_convs_set[0][0], 3, 3),
+            bias=False,
+        )
         nn.init.kaiming_normal_(self.conv1.weight)
 
         if cfg.MODEL.BACKBONE.FROZEN_BN:
@@ -135,32 +154,63 @@ class FastPath(nn.Module):
             nn.init.constant_(self.bn1.weight, 1.0)
             nn.init.constant_(self.bn1.bias, 0.0)
         else:
-            self.bn1 = nn.BatchNorm3d(conv_dims[0], eps=cfg.MODEL.BACKBONE.BN_EPSILON,
-                                      momentum=cfg.MODEL.BACKBONE.BN_MOMENTUM)
+            self.bn1 = nn.BatchNorm3d(
+                conv_dims[0], eps=cfg.MODEL.BACKBONE.BN_EPSILON, momentum=cfg.MODEL.BACKBONE.BN_MOMENTUM
+            )
 
         self.relu = nn.ReLU(inplace=False)
         self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
 
-        self.res_nl1 = ResNLBlock(cfg, conv_dims[0], conv_dims[1], stride=1, num_blocks=n1, dim_inner=dim_inner,
-                                  use_temp_convs=use_temp_convs_set[1], temp_strides=temp_strides_set[1])
+        self.res_nl1 = ResNLBlock(
+            cfg,
+            conv_dims[0],
+            conv_dims[1],
+            stride=1,
+            num_blocks=n1,
+            dim_inner=dim_inner,
+            use_temp_convs=use_temp_convs_set[1],
+            temp_strides=temp_strides_set[1],
+        )
 
-        self.res_nl2 = ResNLBlock(cfg, conv_dims[1], conv_dims[2], stride=2, num_blocks=n2,
-                                  dim_inner=dim_inner * 2, use_temp_convs=use_temp_convs_set[2],
-                                  temp_strides=temp_strides_set[2], nonlocal_mod=conv3_nl_mod,
-                                  group_nonlocal=cfg.MODEL.BACKBONE.SLOWFAST.FAST.CONV3_GROUP_NL)
+        self.res_nl2 = ResNLBlock(
+            cfg,
+            conv_dims[1],
+            conv_dims[2],
+            stride=2,
+            num_blocks=n2,
+            dim_inner=dim_inner * 2,
+            use_temp_convs=use_temp_convs_set[2],
+            temp_strides=temp_strides_set[2],
+            nonlocal_mod=conv3_nl_mod,
+            group_nonlocal=cfg.MODEL.BACKBONE.SLOWFAST.FAST.CONV3_GROUP_NL,
+        )
 
-        self.res_nl3 = ResNLBlock(cfg, conv_dims[2], conv_dims[3], stride=2, num_blocks=n3,
-                                  dim_inner=dim_inner * 4, use_temp_convs=use_temp_convs_set[3],
-                                  temp_strides=temp_strides_set[3], nonlocal_mod=conv4_nl_mod)
+        self.res_nl3 = ResNLBlock(
+            cfg,
+            conv_dims[2],
+            conv_dims[3],
+            stride=2,
+            num_blocks=n3,
+            dim_inner=dim_inner * 4,
+            use_temp_convs=use_temp_convs_set[3],
+            temp_strides=temp_strides_set[3],
+            nonlocal_mod=conv4_nl_mod,
+        )
 
-        self.res_nl4 = ResNLBlock(cfg, conv_dims[3], conv_dims[4], stride=1, num_blocks=n4,
-                                  dim_inner=dim_inner * 8, use_temp_convs=use_temp_convs_set[4],
-                                  temp_strides=temp_strides_set[4],
-                                  dilation=2)
+        self.res_nl4 = ResNLBlock(
+            cfg,
+            conv_dims[3],
+            conv_dims[4],
+            stride=1,
+            num_blocks=n4,
+            dim_inner=dim_inner * 8,
+            use_temp_convs=use_temp_convs_set[4],
+            temp_strides=temp_strides_set[4],
+            dilation=2,
+        )
 
-        if cfg.MODEL.BACKBONE.SLOWFAST.LATERAL == 'tconv':
+        if cfg.MODEL.BACKBONE.SLOWFAST.LATERAL == "tconv":
             self._tconv(conv_dims)
-
 
     def _tconv(self, conv_dims):
         alpha = self.cfg.INPUT.ALPHA
@@ -212,9 +262,14 @@ class SlowPath(nn.Module):
             conv4_nl_mod = 1000
         self.c2_mapping = None
 
-        self.conv1 = nn.Conv3d(in_channels=3, out_channels= conv_dims[0], kernel_size= (1 + use_temp_convs_set[0][0] * 2, 7, 7),
-                               stride=(temp_strides_set[0][0], 2, 2),
-                               padding=(use_temp_convs_set[0][0], 3, 3), bias=False)
+        self.conv1 = nn.Conv3d(
+            in_channels=3,
+            out_channels=conv_dims[0],
+            kernel_size=(1 + use_temp_convs_set[0][0] * 2, 7, 7),
+            stride=(temp_strides_set[0][0], 2, 2),
+            padding=(use_temp_convs_set[0][0], 3, 3),
+            bias=False,
+        )
         nn.init.kaiming_normal_(self.conv1.weight)
 
         if cfg.MODEL.BACKBONE.FROZEN_BN:
@@ -222,31 +277,64 @@ class SlowPath(nn.Module):
             nn.init.constant_(self.bn1.weight, 1.0)
             nn.init.constant_(self.bn1.bias, 0.0)
         else:
-            self.bn1 = nn.BatchNorm3d(conv_dims[0], eps=cfg.MODEL.BACKBONE.BN_EPSILON,
-                                      momentum=cfg.MODEL.BACKBONE.BN_MOMENTUM)
+            self.bn1 = nn.BatchNorm3d(
+                conv_dims[0], eps=cfg.MODEL.BACKBONE.BN_EPSILON, momentum=cfg.MODEL.BACKBONE.BN_MOMENTUM
+            )
 
         self.relu = nn.ReLU(inplace=False)
         self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
 
-        self.res_nl1 = ResNLBlock(cfg, conv_dims[0], conv_dims[1], stride=1, num_blocks=n1, dim_inner=dim_inner,
-                                  use_temp_convs=use_temp_convs_set[1], temp_strides=temp_strides_set[1],
-                                  lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE)
+        self.res_nl1 = ResNLBlock(
+            cfg,
+            conv_dims[0],
+            conv_dims[1],
+            stride=1,
+            num_blocks=n1,
+            dim_inner=dim_inner,
+            use_temp_convs=use_temp_convs_set[1],
+            temp_strides=temp_strides_set[1],
+            lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE,
+        )
 
-        self.res_nl2 = ResNLBlock(cfg, conv_dims[1], conv_dims[2], stride=2, num_blocks=n2,
-                                  dim_inner=dim_inner * 2, use_temp_convs=use_temp_convs_set[2],
-                                  temp_strides=temp_strides_set[2], nonlocal_mod=conv3_nl_mod,
-                                  group_nonlocal=cfg.MODEL.BACKBONE.SLOWFAST.SLOW.CONV3_GROUP_NL,
-                                  lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE)
+        self.res_nl2 = ResNLBlock(
+            cfg,
+            conv_dims[1],
+            conv_dims[2],
+            stride=2,
+            num_blocks=n2,
+            dim_inner=dim_inner * 2,
+            use_temp_convs=use_temp_convs_set[2],
+            temp_strides=temp_strides_set[2],
+            nonlocal_mod=conv3_nl_mod,
+            group_nonlocal=cfg.MODEL.BACKBONE.SLOWFAST.SLOW.CONV3_GROUP_NL,
+            lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE,
+        )
 
-        self.res_nl3 = ResNLBlock(cfg, conv_dims[2], conv_dims[3], stride=2, num_blocks=n3,
-                                  dim_inner=dim_inner * 4, use_temp_convs=use_temp_convs_set[3],
-                                  temp_strides=temp_strides_set[3], nonlocal_mod=conv4_nl_mod,
-                                  lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE)
+        self.res_nl3 = ResNLBlock(
+            cfg,
+            conv_dims[2],
+            conv_dims[3],
+            stride=2,
+            num_blocks=n3,
+            dim_inner=dim_inner * 4,
+            use_temp_convs=use_temp_convs_set[3],
+            temp_strides=temp_strides_set[3],
+            nonlocal_mod=conv4_nl_mod,
+            lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE,
+        )
 
-        self.res_nl4 = ResNLBlock(cfg, conv_dims[3], conv_dims[4], stride=1, num_blocks=n4,
-                                  dim_inner=dim_inner * 8, use_temp_convs=use_temp_convs_set[4],
-                                  temp_strides=temp_strides_set[4], lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE,
-                                  dilation=2)
+        self.res_nl4 = ResNLBlock(
+            cfg,
+            conv_dims[3],
+            conv_dims[4],
+            stride=1,
+            num_blocks=n4,
+            dim_inner=dim_inner * 8,
+            use_temp_convs=use_temp_convs_set[4],
+            temp_strides=temp_strides_set[4],
+            lateral=cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE,
+            dilation=2,
+        )
 
     def forward(self, x, lateral_connection=None):
         out = self.conv1(x)

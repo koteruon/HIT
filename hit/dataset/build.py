@@ -25,9 +25,7 @@ def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True,
         object_transforms: transforms to apply to object boxes.
     """
     if not isinstance(dataset_list, (list, tuple)):
-        raise RuntimeError(
-            "dataset_list should be a list of strings, got {}".format(dataset_list)
-        )
+        raise RuntimeError("dataset_list should be a list of strings, got {}".format(dataset_list))
     datasets = []
     for dataset_name in dataset_list:
         data = dataset_catalog.get(dataset_name)
@@ -37,7 +35,7 @@ def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True,
             # for AVA, we want to remove clips without annotations
             # during training
             args["remove_clips_without_annotations"] = is_train
-            args["frame_span"] = cfg.INPUT.FRAME_NUM*cfg.INPUT.FRAME_SAMPLE_RATE
+            args["frame_span"] = cfg.INPUT.FRAME_NUM * cfg.INPUT.FRAME_SAMPLE_RATE
             if not is_train:
                 args["box_thresh"] = cfg.TEST.BOX_THRESH
                 args["action_thresh"] = cfg.TEST.ACTION_THRESH
@@ -93,24 +91,18 @@ def _compute_aspect_ratios(dataset):
 
 
 def make_batch_data_sampler(
-        dataset, sampler, aspect_grouping, videos_per_batch, num_iters=None, start_iter=0, drop_last=False
+    dataset, sampler, aspect_grouping, videos_per_batch, num_iters=None, start_iter=0, drop_last=False
 ):
     if aspect_grouping:
         if not isinstance(aspect_grouping, (list, tuple)):
             aspect_grouping = [aspect_grouping]
         aspect_ratios = _compute_aspect_ratios(dataset)
         group_ids = _quantize(aspect_ratios, aspect_grouping)
-        batch_sampler = samplers.GroupedBatchSampler(
-            sampler, group_ids, videos_per_batch, drop_uneven=drop_last
-        )
+        batch_sampler = samplers.GroupedBatchSampler(sampler, group_ids, videos_per_batch, drop_uneven=drop_last)
     else:
-        batch_sampler = torch.utils.data.sampler.BatchSampler(
-            sampler, videos_per_batch, drop_last=drop_last
-        )
+        batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, videos_per_batch, drop_last=drop_last)
     if num_iters is not None:
-        batch_sampler = samplers.IterationBasedBatchSampler(
-            batch_sampler, num_iters, start_iter
-        )
+        batch_sampler = samplers.IterationBasedBatchSampler(batch_sampler, num_iters, start_iter)
     return batch_sampler
 
 
@@ -119,9 +111,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
     if is_train:
         # for training
         videos_per_batch = cfg.SOLVER.VIDEOS_PER_BATCH
-        assert (
-                videos_per_batch % num_gpus == 0
-        ), "SOLVER.VIDEOS_PER_BATCH ({}) must be divisible by the number "
+        assert videos_per_batch % num_gpus == 0, "SOLVER.VIDEOS_PER_BATCH ({}) must be divisible by the number "
         "of GPUs ({}) used.".format(videos_per_batch, num_gpus)
         videos_per_gpu = videos_per_batch // num_gpus
         shuffle = True
@@ -130,9 +120,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
     else:
         # for testing
         videos_per_batch = cfg.TEST.VIDEOS_PER_BATCH
-        assert (
-                videos_per_batch % num_gpus == 0
-        ), "TEST.VIDEOS_PER_BATCH ({}) must be divisible by the number "
+        assert videos_per_batch % num_gpus == 0, "TEST.VIDEOS_PER_BATCH ({}) must be divisible by the number "
         "of GPUs ({}) used.".format(videos_per_batch, num_gpus)
         videos_per_gpu = videos_per_batch // num_gpus
         shuffle = False if not is_distributed else True
@@ -156,7 +144,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
         object_transforms = None
     datasets = build_dataset(cfg, dataset_list, transforms, DatasetCatalog, is_train, object_transforms)
 
-   # build sampler and dataloader
+    # build sampler and dataloader
     data_loaders = []
     for dataset in datasets:
         sampler = make_data_sampler(dataset, shuffle, is_distributed)

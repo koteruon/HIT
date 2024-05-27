@@ -1,7 +1,8 @@
-import torch
 import random
-import numpy as np
+
 import cv2
+import numpy as np
+import torch
 
 cv2.setNumThreads(0)
 
@@ -37,7 +38,11 @@ class TemporalCrop(object):
         raw_frame_num = clip.shape[0]
 
         # determine frame start based on frame_num, sample_rate and the jitter shift.
-        frame_start = (raw_frame_num - self.frame_num * self.sample_rate) // 2 + (self.sample_rate - 1) // 2 + self.temporal_jitter
+        frame_start = (
+            (raw_frame_num - self.frame_num * self.sample_rate) // 2
+            + (self.sample_rate - 1) // 2
+            + self.temporal_jitter
+        )
         idx = np.arange(frame_start, frame_start + self.frame_num * self.sample_rate, self.sample_rate)
         idx = np.clip(idx, 0, raw_frame_num - 1)
 
@@ -178,13 +183,14 @@ class SlowFastCrop(object):
         else:
             # if no jitter, select the middle
             slow_start = (self.tau - 1) // 2
-        slow_clip = clip[:, slow_start::self.tau, :, :]
+        slow_clip = clip[:, slow_start :: self.tau, :, :]
 
         fast_stride = self.tau // self.alpha
         fast_start = (fast_stride - 1) // 2
         fast_clip = clip[:, fast_start::fast_stride, :, :]
 
         return [slow_clip, fast_clip], target, transform_randoms
+
 
 class Identity(object):
     # Return what is received. Do nothing.

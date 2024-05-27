@@ -7,8 +7,7 @@ import time
 import torch
 from hit.dataset.datasets.evaluation import evaluate
 from hit.structures.memory_pool import MemoryPool
-from hit.utils.comm import (all_gather, gather, get_rank, get_world_size,
-                            is_main_process, synchronize)
+from hit.utils.comm import all_gather, gather, get_rank, get_world_size, is_main_process, synchronize
 from tqdm import tqdm
 
 
@@ -32,9 +31,7 @@ def compute_on_dataset_1stage(model, data_loader, device):
         with torch.no_grad():
             output = model(slow_clips, fast_clips, boxes, objects, keypoints, extras)
             output = [o.to(cpu_device) for o in output]
-        results_dict.update(
-            {video_id: result for video_id, result in zip(video_ids, output)}
-        )
+        results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
 
     return results_dict
 
@@ -53,10 +50,9 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
 
     loader_len = len(data_loader)
     person_feature_pool = MemoryPool()
-    batch_info_list = [None]*loader_len
+    batch_info_list = [None] * loader_len
     logger.info("Stage 1: extracting clip features.")
     start_time = time.time()
-
 
     for i, batch in enumerate(tqdm(data_loader, **extra_args)):
         slow_clips, fast_clips, boxes, objects, keypoints, extras, video_ids = batch
@@ -73,10 +69,23 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             hand_feature = [ft.to(cpu_device) for ft in feature[2]]
             poses_feature = [ft.to(cpu_device) for ft in feature[3]]
         # store person features into memory pool
-        for j, (movie_id, timestamp, p_ft, o_ft, )in enumerate(zip(movie_ids, timestamps, person_feature, object_feature)):
+        for j, (
+            movie_id,
+            timestamp,
+            p_ft,
+            o_ft,
+        ) in enumerate(zip(movie_ids, timestamps, person_feature, object_feature)):
             person_feature_pool[movie_id, timestamp] = p_ft
         # store other information in list, for further inference
-        batch_info_list[i] = (movie_ids, timestamps, video_ids, object_feature, hand_feature, poses_feature, [b.extra_fields['det_score'] for b in boxes])
+        batch_info_list[i] = (
+            movie_ids,
+            timestamps,
+            video_ids,
+            object_feature,
+            hand_feature,
+            poses_feature,
+            [b.extra_fields["det_score"] for b in boxes],
+        )
         # break
 
     # gather feature pools from different ranks
@@ -97,9 +106,12 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
     results_dict = {}
     logger.info("Stage 2: predicting with extracted feature.")
     start_time = time.time()
-    for movie_ids, timestamps, video_ids, object_feature, hand_feature, poses_feature, det_scores in tqdm(batch_info_list, **extra_args):
-        current_feat_p = [all_feature_pool_p[movie_id, timestamp].to(device)
-                          for movie_id, timestamp in zip(movie_ids, timestamps)]
+    for movie_ids, timestamps, video_ids, object_feature, hand_feature, poses_feature, det_scores in tqdm(
+        batch_info_list, **extra_args
+    ):
+        current_feat_p = [
+            all_feature_pool_p[movie_id, timestamp].to(device) for movie_id, timestamp in zip(movie_ids, timestamps)
+        ]
         current_feat_o = [ft_o.to(device) for ft_o in object_feature]
         current_feat_h = [ft_k.to(device) for ft_k in hand_feature]
         current_feat_pose = [ft_k.to(device) for ft_k in poses_feature]
@@ -117,10 +129,8 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             output = [o.to(cpu_device) for o in output]
             det_scores = [d.to(cpu_device) for d in det_scores]
             for i, o in enumerate(output):
-                output[i].extra_fields['scores'] = output[i].extra_fields['scores'] * det_scores[i].unsqueeze(1)
-        results_dict.update(
-            {video_id: result for video_id, result in zip(video_ids, output)}
-        )
+                output[i].extra_fields["scores"] = output[i].extra_fields["scores"] * det_scores[i].unsqueeze(1)
+        results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
     synchronize()
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=total_time))
@@ -166,11 +176,11 @@ def _accumulate_predictions_from_multiple_gpus(predictions_per_gpu):
 
 
 def inference(
-        model,
-        data_loader,
-        dataset_name,
-        mem_active=False,
-        output_folder=None,
+    model,
+    data_loader,
+    dataset_name,
+    mem_active=False,
+    output_folder=None,
 ):
     # convert to a torch.device for efficiency
     device = torch.device("cuda")
