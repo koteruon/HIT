@@ -1,8 +1,9 @@
 import bisect
 import copy
 
-import hit.config.paths_catalog as paths_catalog
 import torch.utils.data
+
+import hit.config.paths_catalog as paths_catalog
 from hit.utils.comm import get_world_size
 from hit.utils.IA_helper import has_object
 
@@ -48,6 +49,7 @@ def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True,
                 args["object_file"] = None
 
         args["transforms"] = transforms
+        args["is_train"] = is_train
         # make dataset from factory
         dataset = factory(**args)
         datasets.append(dataset)

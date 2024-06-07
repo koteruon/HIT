@@ -38,8 +38,8 @@ class Yolo72coco:
         self.HEIGHT = 1080
         self.WIDTH = 1920
 
-        self.new_height = 360
-        self.new_width = int(round(self.new_height * self.WIDTH / self.HEIGHT / 2) * 2)
+        self.new_width = 960
+        self.new_height = int(round(self.new_width * self.HEIGHT / self.WIDTH / 2) * 2)
         self.ava_dict = {
             "video_id": [],
             "time_stamp": [],
@@ -55,29 +55,18 @@ class Yolo72coco:
         self.flag = False
 
         if is_train:
-            self.action_label_path = r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/annotations/action_timestamp.csv"
-            self.output_csv = r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/annotations/table_tennis_train.csv"
-            # output_gt_person_json = r'/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/annotations/table_tennis_train.json'
-            self.root_txt_path = r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/train/"
-            self.output_person_json = (
-                r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/boxes/table_tennis_train_det_person_bbox.json"
-            )
-            self.output_object_json = (
-                r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/boxes/table_tennis_train_det_object_bbox.json"
-            )
+            self.action_label_path = r"data/table_tennis/annotations/action_timestamp.csv"
+            self.output_csv = r"data/table_tennis/annotations/table_tennis_train.csv"
+            self.root_txt_path = r"data/table_tennis/train/"
+            self.output_person_json = r"data/table_tennis/boxes/table_tennis_train_det_person_bbox.json"
+            self.output_object_json = r"data/table_tennis/boxes/table_tennis_train_det_object_bbox.json"
         else:
             self.action_label_path = r""
             self.output_csv = r""
-            # output_gt_person_json = r'/home/siplab2/chiahe/HIT/data/table_tennis/annotations/table_tennis_train.json'
-            self.root_txt_path = r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/test/"
-            self.output_person_json = (
-                r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/boxes/table_tennis_test_det_person_bbox.json"
-            )
-            self.output_object_json = (
-                r"/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/boxes/table_tennis_test_det_object_bbox.json"
-            )
+            self.root_txt_path = r"data/table_tennis/test/"
+            self.output_person_json = r"data/table_tennis/boxes/table_tennis_test_det_person_bbox.json"
+            self.output_object_json = r"data/table_tennis/boxes/table_tennis_test_det_object_bbox.json"
 
-        self.frame_span = 30
         self.txt_name_pattern = r"M-4_{}.txt"
 
     def read_txt_file(self, txt_path, txt_file):
@@ -90,6 +79,8 @@ class Yolo72coco:
         return paragraph
 
     def resize_letterboxd_and_tran_to_coco_format(self, sequence, root_idx, root_dir, txt_idx):
+        if txt_idx > 100000:
+            raise Exception("txt_idx greater than 100000")
         if len(sequence[1:]) == 5:
             x, y, w, h, score = sequence[1:]
         else:
@@ -122,8 +113,9 @@ class Yolo72coco:
                     key=lambda x: int(x.replace(root_dir + "_", "").split(".")[0]),
                 )
             else:
-                right_span = self.frame_span // 2
-                left_span = self.frame_span - right_span
+                frame_span = 60
+                right_span = frame_span // 2
+                left_span = frame_span - right_span
                 txt_list = [
                     self.txt_name_pattern.format(x)
                     for x in range(int(timestamp) - left_span, int(timestamp) + right_span)
@@ -183,7 +175,7 @@ class Yolo72coco:
                 for txt_idx, txt_file in enumerate(txt_list):
                     paragraph = self.read_txt_file(txt_path, txt_file)
                     for sequence in paragraph:
-                        score, dict_item, _, _ , _ , _ = self.resize_letterboxd_and_tran_to_coco_format(
+                        score, dict_item, _, _, _, _ = self.resize_letterboxd_and_tran_to_coco_format(
                             sequence, root_idx, root_dir, txt_idx
                         )
                         if sequence[0] in self.persons:

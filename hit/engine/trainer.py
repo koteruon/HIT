@@ -3,6 +3,7 @@ import logging
 import time
 
 import torch
+
 from hit.engine.inference import inference
 from hit.structures.memory_pool import MemoryPool
 from hit.utils.comm import all_gather, reduce_dict, synchronize
@@ -10,20 +11,20 @@ from hit.utils.metric_logger import MetricLogger
 
 
 def do_train(
-        model,
-        data_loader,
-        optimizer,
-        scheduler,
-        checkpointer,
-        device,
-        checkpoint_period,
-        arguments,
-        tblogger,
-        val_period,
-        dataset_names_val,
-        data_loaders_val,
-        distributed,
-        mem_active,
+    model,
+    data_loader,
+    optimizer,
+    scheduler,
+    checkpointer,
+    device,
+    checkpoint_period,
+    arguments,
+    tblogger,
+    val_period,
+    dataset_names_val,
+    data_loaders_val,
+    distributed,
+    mem_active,
 ):
     logger = logging.getLogger("hit.trainer")
     logger.info("Start training")
@@ -55,9 +56,11 @@ def do_train(
             mem_extras["timestamps"] = timestamps
             mem_extras["cur_loss"] = losses_reduced.item()
 
-        loss_dict, weight_dict, metric_dict, pooled_feature = model(slow_video, fast_video, boxes, objects, keypoints, mem_extras)
+        loss_dict, weight_dict, metric_dict, pooled_feature = model(
+            slow_video, fast_video, boxes, objects, keypoints, mem_extras
+        )
 
-        losses = sum([loss_dict[k]*weight_dict[k] for k in loss_dict])
+        losses = sum([loss_dict[k] * weight_dict[k] for k in loss_dict])
 
         # reduce losses over all GPUs for logging purposes
         loss_dict["total_loss"] = losses.detach().clone()
@@ -123,34 +126,22 @@ def do_train(
 
         if dataset_names_val and iteration % val_period == 0:
             # do validation
-            val_in_train(
-                model,
-                dataset_names_val,
-                data_loaders_val,
-                tblogger,
-                iteration,
-                distributed,
-                mem_active
-            )
+            val_in_train(model, dataset_names_val, data_loaders_val, tblogger, iteration, distributed, mem_active)
             end = time.time()
 
     total_training_time = time.time() - start_training_time
     total_time_str = str(datetime.timedelta(seconds=total_training_time))
-    logger.info(
-        "Total training time: {} ({:.4f} s / it)".format(
-            total_time_str, total_training_time / (max_iter)
-        )
-    )
+    logger.info("Total training time: {} ({:.4f} s / it)".format(total_time_str, total_training_time / (max_iter)))
 
 
 def val_in_train(
-        model,
-        dataset_names_val,
-        data_loaders_val,
-        tblogger,
-        iteration,
-        distributed,
-        mem_active,
+    model,
+    dataset_names_val,
+    data_loaders_val,
+    tblogger,
+    iteration,
+    distributed,
+    mem_active,
 ):
     if distributed:
         model_val = model.module
@@ -166,6 +157,6 @@ def val_in_train(
         synchronize()
         if tblogger is not None:
             eval_res, _ = eval_res
-            total_mAP = eval_res['PascalBoxes_Precision/mAP@0.5IOU']
-            tblogger.add_scalar(dataset_name + '_mAP_0.5IOU', total_mAP, iteration)
+            total_mAP = eval_res["PascalBoxes_Precision/mAP@0.5IOU"]
+            tblogger.add_scalar(dataset_name + "_mAP_0.5IOU", total_mAP, iteration)
     model.train()

@@ -43,24 +43,28 @@ class DatasetCatalog(object):
             "keypoints_file": "table_tennis/annotations/table_tennis_test_person_bbox_kpts.json",
         },
         "ava_video_train_v2.2": {
-            "video_root": "AVA/clips/trainval",
-            "ann_file": "AVA/annotations/ava_train_v2.2_min.json",
+            "video_root": "/home/siplab2/chaoen/data/AVA/clips/trainval",
+            "ann_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_train_v2.2_min.json",
             "box_file": "",
             "eval_file_paths": {
-                "csv_gt_file": "AVA/annotations/ava_train_v2.2.csv",
-                "labelmap_file": "AVA/annotations/ava_action_list_v2.2_for_activitynet_2019.pbtxt",
-                "exclusion_file": "AVA/annotations/ava_train_excluded_timestamps_v2.2.csv",
+                "csv_gt_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_train_v2.2.csv",
+                "labelmap_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_action_list_v2.2_for_activitynet_2019.pbtxt",
+                "exclusion_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_train_excluded_timestamps_v2.2.csv",
             },
+            "object_file": "",
+            "keypoints_file": "",
         },
         "ava_video_val_v2.2": {
-            "video_root": "AVA/clips/trainval",
-            "ann_file": "AVA/annotations/ava_val_v2.2_min.json",
-            "box_file": "AVA/boxes/ava_val_det_person_bbox.json",
+            "video_root": "/home/siplab2/chaoen/data/AVA/clips/trainval",
+            "ann_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_val_v2.2_min.json",
+            "box_file": "/home/siplab2/chaoen/data/AVA/boxes/ava_val_det_person_bbox.json",
             "eval_file_paths": {
-                "csv_gt_file": "AVA/annotations/ava_val_v2.2.csv",
-                "labelmap_file": "AVA/annotations/ava_action_list_v2.2_for_activitynet_2019.pbtxt",
-                "exclusion_file": "AVA/annotations/ava_val_excluded_timestamps_v2.2.csv",
+                "csv_gt_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_val_v2.2.csv",
+                "labelmap_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_action_list_v2.2_for_activitynet_2019.pbtxt",
+                "exclusion_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_val_excluded_timestamps_v2.2.csv",
             },
+            "object_file": "",
+            "keypoints_file": "",
         },
     }
 
@@ -72,6 +76,14 @@ class DatasetCatalog(object):
             box_file = ""
         else:
             box_file = os.path.join(data_dir, attrs["box_file"])
+        if attrs["object_file"] == "":
+            object_file = ""
+        else:
+            object_file = os.path.join(data_dir, attrs["object_file"])
+        if attrs["keypoints_file"] == "":
+            keypoints_file = ""
+        else:
+            keypoints_file = os.path.join(data_dir, attrs["keypoints_file"])
         args = dict(
             video_root=os.path.join(data_dir, attrs["video_root"]),
             ann_file=os.path.join(data_dir, attrs["ann_file"]),
@@ -79,8 +91,8 @@ class DatasetCatalog(object):
             eval_file_paths={
                 key: os.path.join(data_dir, attrs["eval_file_paths"][key]) for key in attrs["eval_file_paths"]
             },
-            object_file=os.path.join(data_dir, attrs["object_file"]),
-            keypoints_file=os.path.join(data_dir, attrs["keypoints_file"]),
+            object_file=object_file,
+            keypoints_file=keypoints_file,
         )
         return dict(factory="DatasetEngine", args=args)
         raise RuntimeError("Dataset not available: {}".format(name))

@@ -1,17 +1,26 @@
 import json
 import os
 import re
+import select
+import subprocess
+import sys
 import time
 from collections import defaultdict
+from multiprocessing import Pool
 
+import cv2
 import numpy as np
 import torch
 import torch.utils.data as data
 from PIL import Image
+from torchvision.datasets import ImageFolder
 
 from hit.dataset.datasets.iou_calculator import iou
 from hit.structures.bounding_box import BoxList
-from hit.utils.video_decode import av_decode_video
+from hit.utils.video_decode import av_decode_video, cv2_decode_one_image, cv2_decode_video, image_decode
+from preprocess_data.table_tennis.csv2COCO import Csv2COCOJson
+from preprocess_data.table_tennis.process_videos import ProcessVideosPool
+from preprocess_data.table_tennis.yolov72coco import Yolo72coco
 
 
 # This is used to avoid pytorch issuse #13246
@@ -39,7 +48,6 @@ class NpInfoDict(object):
 class NpBoxDict(object):
     def __init__(self, id_to_box_dict, key_list=None, value_types=[]):
         value_fields, value_types = list(zip(*value_types))
-
         assert "bbox" in value_fields
 
         if key_list is None:
@@ -87,14 +95,28 @@ class DatasetEngine(data.Dataset):
         object_file=None,
         object_transforms=None,
         keypoints_file=None,
+        key_point_detection=None,
         is_train=False,
     ):
-        print("loading annotations into memory...")
-        tic = time.time()
-        json_dict = json.load(open(ann_file, "r"))
+        timestamp = None
+        print(f"====================DatasetEngin-ProcessVideo======================")
 
-        assert type(json_dict) == dict, "annotation file format {} not supported".format(type(json_dict))
-        print("Done (t={:0.2f}s)".format(time.time() - tic))
+        processVideosPool = ProcessVideosPool(is_train=is_train)
+        processVideosPool.do_process()
+
+        print(f"===================================================================")
+
+        if timestamp is not None:
+            # camera streaming
+            csv_2_coco_json = Csv2COCOJson()
+            self.json_dict = csv_2_coco_json.genCOCOJson(timestamp)
+        else:
+            print(f"From {ann_file} ")
+            print("loading annotations into memory...")
+            tic = time.time()
+            self.json_dict = json.load(open(ann_file, "r"))  ## xywh
+            assert type(self.json_dict) == dict, "annotation file format {} not supported".format(type(self.json_dict))
+            print("Done (t={:0.2f}s)".format(time.time() - tic))
 
         self.video_root = video_root
         self.transforms = transforms
@@ -106,18 +128,19 @@ class DatasetEngine(data.Dataset):
         self.action_thresh = action_thresh
 
         clip2ann = defaultdict(list)
-        if "annotations" in json_dict:
-            for ann in json_dict["annotations"]:
+        if "annotations" in self.json_dict:
+            for ann in self.json_dict["annotations"]:
                 action_ids = ann["action_ids"]
-                one_hot = np.zeros(81, dtype=np.bool)
+                #### 如果要改動作 記得要改。
+                one_hot = np.zeros(5, dtype=np.bool)
                 one_hot[action_ids] = True
+                # packed_act = np.packbits(one_hot[1:])
                 packed_act = one_hot[1:]
                 clip2ann[ann["image_id"]].append(dict(bbox=ann["bbox"], packed_act=packed_act))
 
         movies_size = {}
         clips_info = {}
-
-        for img in json_dict["images"]:
+        for img in self.json_dict["images"]:
             mov = img["movie"]
             if mov not in movies_size:
                 movies_size[mov] = [img["width"], img["height"]]
@@ -128,10 +151,15 @@ class DatasetEngine(data.Dataset):
         if remove_clips_without_annotations:
             clip_ids = [clip_id for clip_id in clip_ids if clip_id in clip2ann]
 
+        # box_file
+        yolo72coco = Yolo72coco(is_train=is_train)
+        yolo72coco.transform(is_train=is_train)
+        yolo72coco.dump(is_train=is_train)
+        # this is only for validation or testing
+        # we use detected boxes, so remove clips without boxes detected.
         if box_file:
-            # this is only for validation or testing
-            # we use detected boxes, so remove clips without boxes detected.
-            imgToBoxes = self.load_box_file(box_file, box_thresh)
+            self.person_box_results = self.load_box_file(box_file)  ## xyxy
+            imgToBoxes = self.img_to_boxes(self.person_box_results, box_thresh)
             clip_ids = [img_id for img_id in clip_ids if len(imgToBoxes[img_id]) > 0]
             self.det_persons = NpBoxDict(
                 imgToBoxes,
@@ -141,8 +169,10 @@ class DatasetEngine(data.Dataset):
         else:
             self.det_persons = None
 
+        # object_file
         if object_file:
-            imgToObjects = self.load_box_file(object_file)
+            self.object_box_results = self.load_box_file(object_file)  ## xyxy
+            imgToObjects = self.img_to_boxes(self.object_box_results, box_thresh)
             self.det_objects = NpBoxDict(
                 imgToObjects,
                 clip_ids,
@@ -151,9 +181,27 @@ class DatasetEngine(data.Dataset):
         else:
             self.det_objects = None
 
+        # keypoints_file
+        if is_train:
+            yolov7_pose_command = f"cd ../yolov7; {sys.executable} keypoints_detection.py --train"
+        else:
+            yolov7_pose_command = f"cd ../yolov7; {sys.executable} keypoints_detection.py"
+        p = subprocess.Popen(yolov7_pose_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        while True:
+            ready_to_read, _, _ = select.select([p.stdout, p.stderr], [], [])
+            for pipe in ready_to_read:
+                output = pipe.read(1)
+                if output:
+                    sys.stdout.write(output)
+                    sys.stdout.flush()
+            if p.poll() is not None:
+                break
+        out, err = p.communicate()
+        if p.returncode != 0:
+            raise Exception("Message from keypoints_detection error!:{}".format(err))
         if keypoints_file:
-            imgToBoxes = self.load_box_file(keypoints_file)
-
+            self.keypoint_box_results = self.load_box_file(keypoints_file)  ## xyxy
+            imgToBoxes = self.img_to_boxes(self.keypoint_box_results, box_thresh)
             self.det_keypoints = NpBoxDict(
                 imgToBoxes,
                 clip_ids,
@@ -205,22 +253,21 @@ class DatasetEngine(data.Dataset):
 
             boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)  # guard against no boxes
             boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xywh").convert("xyxy")
-            # .convert("xyxy")
 
             # Decode the packed bits from uint8 to one hot, since AVA has 80 classes,
             # it can be exactly denoted with 10 bytes, otherwise we may need to discard some bits.
-            # one_hot_label = np.unpackbits(packed_act, axis=1)
             one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
 
             boxes.add_field("labels", one_hot_label)
+
         else:
             boxes, box_score = self.det_persons[idx]
             boxes_tensor = torch.as_tensor(boxes).reshape(-1, 4)
-            boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xywh").convert("xyxy")
+            # boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xywh").convert("xyxy")
+            boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xyxy")
             boxes.add_field("det_score", torch.as_tensor(box_score))
 
         boxes = boxes.clip_to_image(remove_empty=True)
-        # boxes = boxes.clip_to_image(remove_empty=False)
 
         # Get boxes before the transform
         # To calculate correct IoU
@@ -244,6 +291,7 @@ class DatasetEngine(data.Dataset):
             if self.object_transforms is not None:
                 keypoints = self.object_transforms(keypoints, boxes, transform_randoms)
 
+            # add infos neccessary for memory feature
             extras["movie_id"] = movie_id
             extras["timestamp"] = timestamp
 
@@ -257,13 +305,15 @@ class DatasetEngine(data.Dataset):
     def get_objects(self, idx, im_w, im_h):
         obj_boxes = self.return_null_box(im_w, im_h)
         if hasattr(self, "det_objects"):
-            boxes, box_score = self.det_objects[idx]
+            boxes, box_score = self.det_objects[idx]  ## xyxy
 
             if len(box_score) == 0:
                 return obj_boxes
             obj_boxes_tensor = torch.as_tensor(boxes).reshape(-1, 4)
+            # obj_boxes = BoxList(obj_boxes_tensor, (im_w, im_h), mode="xywh").convert(
+            #     "xyxy"
+            # )
             obj_boxes = BoxList(obj_boxes_tensor, (im_w, im_h), mode="xyxy")
-
             scores = torch.as_tensor(box_score)
             obj_boxes.add_field("scores", scores)
 
@@ -271,7 +321,7 @@ class DatasetEngine(data.Dataset):
 
     def get_keypoints(self, idx, im_w, im_h, orig_boxes):
         kpts_boxes = self.return_null_box(im_w, im_h)
-        keypoints, boxes, box_score = self.det_keypoints[idx]
+        keypoints, boxes, box_score = self.det_keypoints[idx]  ##xyxy
 
         if len(box_score) == 0:
             kpts_boxes = BoxList(
@@ -279,7 +329,7 @@ class DatasetEngine(data.Dataset):
                 (im_w, im_h),
                 mode="xyxy",
             )
-            kpts_boxes.add_field("keypoints", np.zeros((orig_boxes.shape[0], 17, 3)))
+            kpts_boxes.add_field("keypoints", np.zeros((orig_boxes.shape[0], 17, 3)))  ## COCO 17 keypoints
             return kpts_boxes
 
         # Keep only the keypoints with corresponding boxes in the GT
@@ -308,36 +358,42 @@ class DatasetEngine(data.Dataset):
         w, h = movie_size
         return dict(width=w, height=h, movie=movie_id, timestamp=timestamp)
 
-    def load_box_file(self, box_file, score_thresh=0.0):
+    def load_box_file(self, box_file):
         import json
 
+        print(f"-------------------------------------------------------------------")
+        print(f"From {box_file}")
         print("Loading box file into memory...")
         tic = time.time()
         with open(box_file, "r") as f:
             box_results = json.load(f)
         print("Done (t={:0.2f}s)".format(time.time() - tic))
+        return box_results
 
+    def img_to_boxes(self, box_results, score_thresh=0.0):
         boxImgIds = [box["image_id"] for box in box_results]
 
         imgToBoxes = defaultdict(list)
         for img_id, box in zip(boxImgIds, box_results):
-            if float(box["score"]) >= score_thresh:
+            if box["score"] >= score_thresh:
                 imgToBoxes[img_id].append(box)
         return imgToBoxes
 
     def _decode_video_data(self, dirname, timestamp):
         # decode target video data from segment per second.
+
         video_folder = os.path.join(self.video_root, dirname)
+        total_videos = len(os.listdir(video_folder))
+
         right_span = self.frame_span // 2
         left_span = self.frame_span - right_span
 
         # load right
         cur_t = timestamp
         right_frames = []
-        while len(right_frames) < right_span:
-            video_path = os.path.join(video_folder, "{}.mp4".format(cur_t))
-            # frames = cv2_decode_video(video_path)
-            frames = av_decode_video(video_path)
+        while len(right_frames) < right_span and cur_t < total_videos:
+            video_path = os.path.join(video_folder, "{}.jpg".format(cur_t))
+            frames = image_decode(video_path)
             if len(frames) == 0:
                 raise RuntimeError("Video {} cannot be decoded.".format(video_path))
             right_frames = right_frames + frames
@@ -346,10 +402,9 @@ class DatasetEngine(data.Dataset):
         # load left
         cur_t = timestamp - 1
         left_frames = []
-        while len(left_frames) < left_span:
-            video_path = os.path.join(video_folder, "{}.mp4".format(cur_t))
-            # frames = cv2_decode_video(video_path)
-            frames = av_decode_video(video_path)
+        while len(left_frames) < left_span and cur_t >= 0:
+            video_path = os.path.join(video_folder, "{}.jpg".format(cur_t))
+            frames = image_decode(video_path)
             if len(frames) == 0:
                 raise RuntimeError("Video {} cannot be decoded.".format(video_path))
             left_frames = frames + left_frames
@@ -357,9 +412,16 @@ class DatasetEngine(data.Dataset):
 
         # adjust key frame to center, usually no need
         min_frame_num = min(len(left_frames), len(right_frames))
-        frames = left_frames[-min_frame_num:] + right_frames[:min_frame_num]
+        if min_frame_num == 0:
+            if len(left_frames) == 0:
+                frames = right_frames[:1]  # 第0個frame
+            if len(right_frames) == 0:
+                frames = left_frames[-1:]  # 最後一個frame
+        else:
+            frames = left_frames[-min_frame_num:] + right_frames[:min_frame_num]
 
         video_data = np.stack(frames)
+
         return video_data
 
     def __len__(self):
@@ -371,4 +433,106 @@ class DatasetEngine(data.Dataset):
         fmt_str += "    Video Root Location: {}\n".format(self.video_root)
         tmp = "    Transforms (if any): "
         fmt_str += "{0}{1}\n".format(tmp, self.transforms.__repr__().replace("\n", "\n" + " " * len(tmp)))
-        return fmt_str
+        return
+
+
+class videoEngine(data.Dataset):
+    def __init__(self, video_root, frame_span):
+        super(videoEngine).__init__()
+        self.video_root = video_root
+        self.sample = []
+        self.temp = []
+        cap = cv2.VideoCapture(self.video_root)
+        while True:
+            success, image = cap.read()
+            if not success:
+                break
+            frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            self.temp.append(frame)
+            if len(self.temp) == self.frame_spans:
+                self.sample.append(self.temp)
+                self.temp = []
+
+    def __len__(self):
+        return len(self.sample)
+
+    def __getitem__(self, idx):
+        _, clip_info = self.clips_info[idx]
+
+        # mov_id is the id in self.movie_info
+        mov_id, timestamp = clip_info
+        # movie_id is the human-readable youtube id.
+        movie_id, movie_size = self.movie_info[mov_id]
+        video_data = self.sample[idx]
+
+        im_w, im_h = movie_size
+
+        if self.det_persons is None:
+            # Note: During training, we only use gt. Thus we should not provide box file,
+            # otherwise we will use only box file instead.
+
+            boxes, packed_act = self.anns[idx]
+
+            boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)  # guard against no boxes
+            boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xywh").convert("xyxy")
+
+            # Decode the packed bits from uint8 to one hot, since AVA has 80 classes,
+            # it can be exactly denoted with 10 bytes, otherwise we may need to discard some bits.
+            # one_hot_label = np.unpackbits(packed_act, axis=1)
+            # one_hot_label = torch.as_tensor(one_hot_label, dtype=torch.uint8)
+            one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
+
+            boxes.add_field("labels", one_hot_label)
+
+        else:
+            boxes, box_score = self.det_persons[idx]
+            boxes_tensor = torch.as_tensor(boxes).reshape(-1, 4)
+            # boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xywh").convert("xyxy")
+            boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xyxy")
+            boxes.add_field("det_score", torch.as_tensor(box_score))
+
+        boxes = boxes.clip_to_image(remove_empty=True)
+
+        # Get boxes before the transform
+        # To calculate correct IoU
+        orig_boxes = boxes.bbox
+        # extra fields
+        extras = {}
+
+        if self.transforms is not None:
+            video_data, boxes, transform_randoms = self.transforms(video_data, boxes)
+            slow_video, fast_video = video_data
+
+            objects = None
+            if self.det_objects is not None:
+                objects = self.get_objects(idx, im_w, im_h)
+            if self.object_transforms is not None:
+                objects = self.object_transforms(objects, boxes, transform_randoms)
+
+            keypoints = None
+            if self.det_keypoints is not None:
+                keypoints = self.get_keypoints(idx, im_w, im_h, orig_boxes)
+            if self.object_transforms is not None:
+                keypoints = self.object_transforms(keypoints, boxes, transform_randoms)
+
+            # add infos neccessary for memory feature
+            extras["movie_id"] = movie_id
+            extras["timestamp"] = timestamp
+
+            return slow_video, fast_video, boxes, objects, keypoints, extras, idx
+
+        return video_data, boxes, idx, movie_id, timestamp
+
+
+if __name__ == "__main__":
+    from torch.utils.data import DataLoader
+
+    dataset = videoEngine(
+        f"data/table_tennis/clips/train/f-1/0.mp4",
+        f"data/table_tennis/clips/train/f-1/0.mp4",
+        frame_span=30,
+    )
+    dataloader = DataLoader(dataset)
+
+    for img in dataloader:
+        print(img.shape)

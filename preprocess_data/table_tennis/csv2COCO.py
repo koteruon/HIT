@@ -11,13 +11,20 @@ from tqdm import tqdm
 
 
 class Csv2COCOJson:
-    def __init__(self) -> None:
-        self._csv_path = None
-        self._movie_list = "data/table_tennis/annotations/table_tennis_names_test.txt"
-        self._img_root = "data/table_tennis/keyframes/test/"
-        self._json_path = None
-        self._min_json_path = None
-        self.frame_span = 30
+    def __init__(self, is_train=False) -> None:
+        self._movie_list = None
+        if is_train:
+            self._csv_path = "data/table_tennis/annotations/table_tennis_train.csv"
+            self._img_root = "data/table_tennis/keyframes/train/"
+            self._movie_path = "data/table_tennis/videos/train"
+            self._json_path = "data/table_tennis/annotations/table_tennis_train.json"
+            self._min_json_path = "data/table_tennis/annotations/table_tennis_train_min.json"
+        else:
+            self._csv_path = None
+            self._img_root = "data/table_tennis/keyframes/test/"
+            self._movie_path = "data/table_tennis/videos/test"
+            self._json_path = "data/table_tennis/annotations/test.json"
+            self._min_json_path = "data/table_tennis/annotations/test_min.json"
 
     @property
     def csv_path(self):
@@ -30,6 +37,10 @@ class Csv2COCOJson:
     @property
     def img_root(self):
         return self._img_root
+
+    @property
+    def movie_path(self):
+        return self._movie_path
 
     @property
     def json_path(self):
@@ -51,6 +62,10 @@ class Csv2COCOJson:
     def img_root(self, img_root):
         self._img_root = img_root
 
+    @movie_path.setter
+    def movie_path(self, movie_path):
+        self._movie_path = movie_path
+
     @json_path.setter
     def json_path(self, json_path):
         self._json_path = json_path
@@ -61,12 +76,16 @@ class Csv2COCOJson:
 
     def csv2COCOJson(self):
         ann_df = pd.read_csv(self._csv_path, header=None)
-
         movie_ids = {}
-        with open(self._movie_list) as movief:
-            for idx, line in enumerate(movief):
-                # name = line[: line.find('.')]
-                name = line.split("/")[1].split()[0]
+        if self._movie_list:
+            with open(self._movie_list) as movief:
+                for idx, line in enumerate(movief):
+                    # name = line[: line.find('.')]
+                    name = line.split("/")[1].split()[0]
+                    movie_ids[name] = idx
+        else:
+            for idx, movie_name in enumerate(sorted(os.listdir(self._movie_path))):
+                name = os.path.splitext(movie_name)[0]
                 movie_ids[name] = idx
         movie_infos = {}
         iter_num = len(ann_df)
@@ -89,6 +108,8 @@ class Csv2COCOJson:
                 tid_range = pd.unique(ann_df.loc[ann_df[0] == movie_name][1].values.flatten())
                 # for tid in range(tid_range):
                 for tid in tid_range:
+                    if tid > 100000:
+                        raise Exception("tid greater than 100000")
                     img_id = movie_id + tid
                     img_path = os.path.join(movie_name, "{}.jpg".format(tid))
                     video_path = os.path.join(movie_name, "{}.mp4".format(tid))
@@ -149,10 +170,15 @@ class Csv2COCOJson:
 
     def genCOCOJson(self, timestamp=None):
         movie_ids = {}
-        with open(self._movie_list) as movief:
-            for idx, line in enumerate(movief):
-                # name = line[: line.find('.')]
-                name = line.split("/")[1].split()[0]
+        if self._movie_list:
+            with open(self._movie_list) as movief:
+                for idx, line in enumerate(movief):
+                    # name = line[: line.find('.')]
+                    name = line.split("/")[1].split()[0]
+                    movie_ids[name] = idx
+        else:
+            for idx, movie_name in enumerate(sorted(os.listdir(self._movie_path))):
+                name = os.path.splitext(movie_name)[0]
                 movie_ids[name] = idx
         movie_infos = {}
 
@@ -182,6 +208,8 @@ class Csv2COCOJson:
             tid_range = [int(x.split(".")[0]) for x in image_list]
             # for tid in range(tid_range):
             for tid in tid_range:
+                if tid > 100000:
+                    raise Exception("tid greater than 100000")
                 img_id = movie_id + tid
                 img_path = os.path.join(movie_name, "{}.jpg".format(tid))
                 video_path = os.path.join(movie_name, "{}.mp4".format(tid))
@@ -228,6 +256,11 @@ class Csv2COCOJson:
 def main():
     parser = argparse.ArgumentParser(description="Generate coco format json for AVA.")
     parser.add_argument(
+        "--train",
+        help="Build training annotation",
+        action="store_true",
+    )
+    parser.add_argument(
         "--csv_path",
         default="",
         help="path to csv file",
@@ -257,42 +290,23 @@ def main():
     )
     args = parser.parse_args()
 
-    csv_2_coco_json = Csv2COCOJson()
+    csv_2_coco_json = Csv2COCOJson(is_train=args.train)
 
     if args.movie_list:
         csv_2_coco_json.movie_list = args.movie_list
     if args.img_root:
         csv_2_coco_json.img_root = args.img_root
-
-    if args.json_path == "":
-        if args.csv_path == "":
-            csv_2_coco_json.json_path = "/home/chaoen/yoloNhit_calvin/HIT/data/table_tennis/annotations/test.json"
-        else:
-            dotpos = args.csv_path.rfind(".")
-            if dotpos < 0:
-                csv_name = args.csv_path
-            else:
-                csv_name = args.csv_path[:dotpos]
-            csv_2_coco_json.json_path = csv_name + ".json"
-    else:
+    if args.json_path:
         csv_2_coco_json.json_path = args.json_path
-
-    if args.min_json_path == "":
-        dotpos = csv_2_coco_json.json_path.rfind(".")
-        if dotpos < 0:
-            json_name = csv_2_coco_json.json_path
-        else:
-            json_name = csv_2_coco_json.json_path[:dotpos]
-        csv_2_coco_json.min_json_path = json_name + "_min.json"
-    else:
+    if args.min_json_path:
         csv_2_coco_json.min_json_path = args.min_json_path
-
-    if args.csv_path == "":
-        jsondata = csv_2_coco_json.genCOCOJson()
-    else:
+    if args.csv_path:
         csv_2_coco_json.csv_path = args.csv_path
-        jsondata = csv_2_coco_json.csv2COCOJson()
 
+    if args.train:
+        jsondata = csv_2_coco_json.csv2COCOJson()
+    else:
+        jsondata = csv_2_coco_json.genCOCOJson()
     csv_2_coco_json.dump(jsondata)
 
 
