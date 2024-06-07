@@ -45,8 +45,14 @@ def do_train(
         slow_video = slow_video.to(device)
         fast_video = fast_video.to(device)
         boxes = [box.to(device) for box in boxes]
-        keypoints = [keypoint.to(device) for keypoint in keypoints]
-        objects = [None if (box is None) else box.to(device) for box in objects]
+        keypoints = (
+            None if all(keypoint is None for keypoint in keypoints) else [keypoint.to(device) for keypoint in keypoints]
+        )
+        objects = (
+            None
+            if all(box is None for box in objects)
+            else [None if (box is None) else box.to(device) for box in objects]
+        )
         mem_extras = {}
         if mem_active:
             movie_ids = [e["movie_id"] for e in extras]

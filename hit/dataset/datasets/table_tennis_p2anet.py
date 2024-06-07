@@ -98,7 +98,6 @@ class DatasetEngine(data.Dataset):
         key_point_detection=None,
         is_train=False,
     ):
-        timestamp = None
         print(f"====================DatasetEngin-ProcessVideo======================")
 
         processVideosPool = ProcessVideosPool(is_train=is_train)
@@ -106,17 +105,19 @@ class DatasetEngine(data.Dataset):
 
         print(f"===================================================================")
 
-        if timestamp is not None:
-            # camera streaming
-            csv_2_coco_json = Csv2COCOJson()
-            self.json_dict = csv_2_coco_json.genCOCOJson(timestamp)
+        # annotation file
+        csv_2_coco_json = Csv2COCOJson(is_train=is_train)
+        if is_train:
+            jsondata = csv_2_coco_json.csv2COCOJson()
         else:
-            print(f"From {ann_file} ")
-            print("loading annotations into memory...")
-            tic = time.time()
-            self.json_dict = json.load(open(ann_file, "r"))  ## xywh
-            assert type(self.json_dict) == dict, "annotation file format {} not supported".format(type(self.json_dict))
-            print("Done (t={:0.2f}s)".format(time.time() - tic))
+            jsondata = csv_2_coco_json.genCOCOJson()
+        csv_2_coco_json.dump(jsondata)
+        print(f"From {ann_file} ")
+        print("loading annotations into memory...")
+        tic = time.time()
+        self.json_dict = json.load(open(ann_file, "r"))  ## xywh
+        assert type(self.json_dict) == dict, "annotation file format {} not supported".format(type(self.json_dict))
+        print("Done (t={:0.2f}s)".format(time.time() - tic))
 
         self.video_root = video_root
         self.transforms = transforms

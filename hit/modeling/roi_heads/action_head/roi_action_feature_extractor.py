@@ -5,12 +5,10 @@ from torch.nn import functional as F
 from hit.modeling import registry
 from hit.modeling.poolers import make_3d_pooler
 from hit.modeling.roi_heads.action_head.hit_structure import make_hit_structure
-from hit.modeling.utils import cat, pad_sequence, prepare_pooled_feature
-from hit.utils.IA_helper import has_object, has_hand
-from hit.structures.bounding_box import BoxList
-
 from hit.modeling.roi_heads.action_head.pose_transformer import PoseTransformer
-
+from hit.modeling.utils import cat, pad_sequence, prepare_pooled_feature
+from hit.structures.bounding_box import BoxList
+from hit.utils.IA_helper import has_hand, has_object
 
 
 @registry.ROI_ACTION_FEATURE_EXTRACTORS.register("2MLPFeatureExtractor")
@@ -75,7 +73,9 @@ class MLPFeatureExtractor(nn.Module):
             x = self.max_pooler(x)
         return x
 
-    def forward(self, slow_features, fast_features, proposals, objects=None, keypoints=None, extras={}, part_forward=-1):
+    def forward(
+        self, slow_features, fast_features, proposals, objects=None, keypoints=None, extras={}, part_forward=-1
+    ):
         ia_active = hasattr(self, "hit_structure")
         if part_forward == 1:
             person_pooled = cat([box.get_field("pooled_feature") for box in proposals])
@@ -83,7 +83,7 @@ class MLPFeatureExtractor(nn.Module):
                 object_pooled = None
             else:
                 object_pooled = cat([box.get_field("pooled_feature") for box in objects])
-                
+
             if keypoints is None:
                 hands_pooled = None
             else:
@@ -101,34 +101,46 @@ class MLPFeatureExtractor(nn.Module):
                 object_pooled = None
             hand_boxlists = []
 
-            if has_hand(self.config.MODEL.HIT_STRUCTURE):    
-                for k in keypoints:
-                    if 'keypoints' in k.extra_fields:
-                        kk = torch.flatten(k.extra_fields['keypoints'], start_dim=1)[:, 18:22]
-                        hand_boxlists.append(BoxList(kk, k.size, mode="xyxy"))
-                    else:
-                        hand_boxlists.append(BoxList(torch.zeros((0, 4), dtype=k.bbox.dtype, device=k.bbox.device), k.size, mode="xyxy"))
+            if has_hand(self.config.MODEL.HIT_STRUCTURE):
+                if keypoints:
+                    for k in keypoints:
+                        if "keypoints" in k.extra_fields:
+                            kk = torch.flatten(k.extra_fields["keypoints"], start_dim=1)[:, 18:22]
+                            hand_boxlists.append(BoxList(kk, k.size, mode="xyxy"))
+                        else:
+                            hand_boxlists.append(
+                                BoxList(
+                                    torch.zeros((0, 4), dtype=k.bbox.dtype, device=k.bbox.device), k.size, mode="xyxy"
+                                )
+                            )
 
-
-                    # extend width and height by 50%
-                    proposals_hand = [box.extend((0.2, 0.8)) for box in hand_boxlists]
-                    hands_pooled = self.roi_pooling(slow_features, fast_features, proposals_hand)
-                    hands_pooled = self.max_pooling_zero_safe(hands_pooled)
+                        # extend width and height by 50%
+                        proposals_hand = [box.extend((0.2, 0.8)) for box in hand_boxlists]
+                        hands_pooled = self.roi_pooling(slow_features, fast_features, proposals_hand)
+                        hands_pooled = self.max_pooling_zero_safe(hands_pooled)
+                else:
+                    hands_pooled = None
             else:
                 hands_pooled = None
-            
-            # Pose  start     
-            pose_data = torch.cat([k.extra_fields['keypoints'].to(k.bbox.device) for k in keypoints if 'keypoints' in k.extra_fields], dim=0).unsqueeze(1)
-           
+
+            # Pose  start
+            if keypoints:
+                pose_data = torch.cat(
+                    [k.extra_fields["keypoints"].to(k.bbox.device) for k in keypoints if "keypoints" in k.extra_fields],
+                    dim=0,
+                ).unsqueeze(1)
+            else:
+                pose_data = torch.empty(0).unsqueeze(1)
+
             if pose_data.shape[0] == person_pooled.shape[0]:
                 self.pose_transformer = self.pose_transformer.to(keypoints[0].bbox.device)
                 pose_out = self.pose_transformer(pose_data)
                 pose_out = pose_out.view(-1, self.pose_out).unsqueeze(2).unsqueeze(2).unsqueeze(2)
-                
+
             else:
                 pose_out = None
             # Pose end
-                
+
         if part_forward == 0:
             return None, person_pooled, object_pooled, hands_pooled, pose_out
 
@@ -138,22 +150,54 @@ class MLPFeatureExtractor(nn.Module):
             mem_len = self.config.MODEL.HIT_STRUCTURE.LENGTH
             mem_rate = self.config.MODEL.HIT_STRUCTURE.MEMORY_RATE
             use_penalty = self.config.MODEL.HIT_STRUCTURE.PENALTY
-            memory_person, memory_person_boxes = self.get_memory_feature(extras["person_pool"], extras, mem_len, mem_rate,
-                                                                       self.max_feature_len_per_sec, tsfmr.dim_others,
-                                                                       person_pooled, proposals, use_penalty)
+            memory_person, memory_person_boxes = self.get_memory_feature(
+                extras["person_pool"],
+                extras,
+                mem_len,
+                mem_rate,
+                self.max_feature_len_per_sec,
+                tsfmr.dim_others,
+                person_pooled,
+                proposals,
+                use_penalty,
+            )
             # RGB stream
-            ia_feature, res_person, res_object, res_keypoint = self.hit_structure(person_pooled, proposals, object_pooled, objects, hands_pooled, keypoints, memory_person, None, None, phase="rgb")
+            ia_feature, res_person, res_object, res_keypoint = self.hit_structure(
+                person_pooled,
+                proposals,
+                object_pooled,
+                objects,
+                hands_pooled,
+                keypoints,
+                memory_person,
+                None,
+                None,
+                phase="rgb",
+            )
             # pose
-            pose_ia_feature = self.hit_structure_pose(pose_out, proposals, res_object, objects, res_keypoint, keypoints, memory_person, res_person, ia_feature, phase="pose")
+            pose_ia_feature = self.hit_structure_pose(
+                pose_out,
+                proposals,
+                res_object,
+                objects,
+                res_keypoint,
+                keypoints,
+                memory_person,
+                res_person,
+                ia_feature,
+                phase="pose",
+            )
             x_after = self.fusion(x_after, pose_ia_feature, self.config.MODEL.HIT_STRUCTURE.FUSION)
         x_after = x_after.view(x_after.size(0), -1)
-        
+
         x_after = F.relu(self.fc1(x_after))
         x_after = F.relu(self.fc2(x_after))
 
         return x_after, person_pooled, object_pooled, hands_pooled, pose_out
 
-    def get_memory_feature(self, feature_pool, extras, mem_len, mem_rate, max_boxes, fixed_dim, current_x, current_box, use_penalty):
+    def get_memory_feature(
+        self, feature_pool, extras, mem_len, mem_rate, max_boxes, fixed_dim, current_x, current_box, use_penalty
+    ):
         before, after = mem_len
         mem_feature_list = []
         mem_pos_list = []
@@ -167,20 +211,30 @@ class MLPFeatureExtractor(nn.Module):
             before_inds = range(timestamp - before * mem_rate, timestamp, mem_rate)
             after_inds = range(timestamp + mem_rate, timestamp + (after + 1) * mem_rate, mem_rate)
             cache_cur_mov = feature_pool[movie_id]
-            mem_box_list_before = [self.check_fetch_mem_feature(cache_cur_mov, mem_ind, max_boxes, cur_loss, use_penalty)
-                                   for mem_ind in before_inds]
-            mem_box_list_after = [self.check_fetch_mem_feature(cache_cur_mov, mem_ind, max_boxes, cur_loss, use_penalty)
-                                  for mem_ind in after_inds]
-            mem_box_current = [self.sample_mem_feature(new_feat, max_boxes), ]
+            mem_box_list_before = [
+                self.check_fetch_mem_feature(cache_cur_mov, mem_ind, max_boxes, cur_loss, use_penalty)
+                for mem_ind in before_inds
+            ]
+            mem_box_list_after = [
+                self.check_fetch_mem_feature(cache_cur_mov, mem_ind, max_boxes, cur_loss, use_penalty)
+                for mem_ind in after_inds
+            ]
+            mem_box_current = [
+                self.sample_mem_feature(new_feat, max_boxes),
+            ]
             mem_box_list = mem_box_list_before + mem_box_current + mem_box_list_after
-            mem_feature_list += [box_list.get_field("pooled_feature")
-                                 if box_list is not None
-                                 else torch.zeros(0, fixed_dim, 1, 1, 1, dtype=torch.float32, device="cuda")
-                                 for box_list in mem_box_list]
-            mem_pos_list += [box_list.bbox
-                             if box_list is not None
-                             else torch.zeros(0, 4, dtype=torch.float32, device="cuda")
-                             for box_list in mem_box_list]
+            mem_feature_list += [
+                (
+                    box_list.get_field("pooled_feature")
+                    if box_list is not None
+                    else torch.zeros(0, fixed_dim, 1, 1, 1, dtype=torch.float32, device="cuda")
+                )
+                for box_list in mem_box_list
+            ]
+            mem_pos_list += [
+                box_list.bbox if box_list is not None else torch.zeros(0, 4, dtype=torch.float32, device="cuda")
+                for box_list in mem_box_list
+            ]
 
         seq_length = sum(mem_len) + 1
         person_per_seq = seq_length * max_boxes
@@ -222,7 +276,5 @@ class MLPFeatureExtractor(nn.Module):
 
 
 def make_roi_action_feature_extractor(cfg, dim_in):
-    func = registry.ROI_ACTION_FEATURE_EXTRACTORS[
-        cfg.MODEL.ROI_ACTION_HEAD.FEATURE_EXTRACTOR
-    ]
+    func = registry.ROI_ACTION_FEATURE_EXTRACTORS[cfg.MODEL.ROI_ACTION_HEAD.FEATURE_EXTRACTOR]
     return func(cfg, dim_in)

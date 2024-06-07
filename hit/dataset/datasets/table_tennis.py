@@ -13,8 +13,7 @@ from torchvision.datasets import ImageFolder
 
 from hit.dataset.datasets.iou_calculator import iou
 from hit.structures.bounding_box import BoxList
-from hit.utils.video_decode import (av_decode_video, cv2_decode_one_image,
-                                    cv2_decode_video, image_decode)
+from hit.utils.video_decode import av_decode_video, cv2_decode_one_image, cv2_decode_video, image_decode
 from preprocess_data.table_tennis.csv2COCO import Csv2COCOJson
 from preprocess_data.table_tennis.yolov72coco import Yolo72coco
 
@@ -93,6 +92,7 @@ class DatasetEngine(data.Dataset):
         keypoints_file=None,
         key_point_detection=None,
         timestamp=None,
+        is_train=False,
     ):
         print(f"===================================================================")
 
@@ -393,9 +393,9 @@ class DatasetEngine(data.Dataset):
         min_frame_num = min(len(left_frames), len(right_frames))
         if min_frame_num == 0:
             if len(left_frames) == 0:
-                frames = right_frames[:1] # 第0個frame
+                frames = right_frames[:1]  # 第0個frame
             if len(right_frames) == 0:
-                frames = left_frames[-1:] # 最後一個frame
+                frames = left_frames[-1:]  # 最後一個frame
         else:
             frames = left_frames[-min_frame_num:] + right_frames[:min_frame_num]
 

@@ -1,10 +1,10 @@
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import math
 
 import torch
 import torch.nn as nn
+
 from hit.modeling import registry
 from hit.utils.IA_helper import has_hand, has_memory, has_object, has_person
 
@@ -16,19 +16,19 @@ class NL(nn.Module):
 
         self.hidden_dim = hidden_dim
 
-        self.conv_q = nn.Conv3d(in_channels=hidden_dim, out_channels= hidden_dim, kernel_size= 1, padding=0, bias=False)
-        self.conv_k = nn.Conv3d(in_channels=hidden_dim, out_channels= hidden_dim, kernel_size= 1, padding=0, bias=False)
-        self.conv_v = nn.Conv3d(in_channels=hidden_dim, out_channels= hidden_dim, kernel_size= 1, padding=0, bias=False)
+        self.conv_q = nn.Conv3d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0, bias=False)
+        self.conv_k = nn.Conv3d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0, bias=False)
+        self.conv_v = nn.Conv3d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0, bias=False)
 
-        self.conv = nn.Conv3d(in_channels=hidden_dim, out_channels= hidden_dim, kernel_size= 1, padding=0, bias=False)
-        self.conv_out = nn.Conv3d(in_channels=hidden_dim, out_channels= out_dim, kernel_size= 1, padding=0, bias=False)
+        self.conv = nn.Conv3d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0, bias=False)
+        self.conv_out = nn.Conv3d(in_channels=hidden_dim, out_channels=out_dim, kernel_size=1, padding=0, bias=False)
         self.norm = nn.GroupNorm(1, hidden_dim, affine=True)
         self.dp = nn.Dropout(0.2)
 
     def forward(self, x):
         query = self.conv_q(x).unsqueeze(1)
         key = self.conv_k(x).unsqueeze(0)
-        att = (query * key).sum(2) / (self.hidden_dim ** 0.5)
+        att = (query * key).sum(2) / (self.hidden_dim**0.5)
         att = nn.Softmax(dim=1)(att)
         value = self.conv_v(x)
         virt_feats = (att.unsqueeze(2) * value).sum(1)
@@ -42,11 +42,19 @@ class NL(nn.Module):
         x = self.conv_out(x)
         return x
 
+
 class InteractionUnit(nn.Module):
-    def __init__(self, dim_person, dim_other, dim_out, dim_inner, structure_config,
-                 max_others=20,
-                 temp_pos_len=-1,  # configs for memory feature
-                 dropout=0.):
+    def __init__(
+        self,
+        dim_person,
+        dim_other,
+        dim_out,
+        dim_inner,
+        structure_config,
+        max_others=20,
+        temp_pos_len=-1,  # configs for memory feature
+        dropout=0.0,
+    ):
         super(InteractionUnit, self).__init__()
         self.dim_person = dim_person
         self.dim_other = dim_other
@@ -60,16 +68,16 @@ class InteractionUnit(nn.Module):
         bias = not structure_config.NO_BIAS
         init_std = structure_config.CONV_INIT_STD
 
-        self.query = nn.Conv3d(in_channels=dim_person, out_channels= dim_inner, kernel_size= 1, bias=bias)
+        self.query = nn.Conv3d(in_channels=dim_person, out_channels=dim_inner, kernel_size=1, bias=bias)
         init_layer(self.query, init_std, bias)
 
-        self.key = nn.Conv3d(in_channels=dim_other, out_channels= dim_inner, kernel_size= 1, bias=bias)
+        self.key = nn.Conv3d(in_channels=dim_other, out_channels=dim_inner, kernel_size=1, bias=bias)
         init_layer(self.key, init_std, bias)
 
-        self.value = nn.Conv3d(in_channels=dim_other, out_channels= dim_inner, kernel_size= 1, bias=bias)
+        self.value = nn.Conv3d(in_channels=dim_other, out_channels=dim_inner, kernel_size=1, bias=bias)
         init_layer(self.value, init_std, bias)
 
-        self.out = nn.Conv3d(in_channels=dim_inner, out_channels= dim_out, kernel_size= 1, bias=bias)
+        self.out = nn.Conv3d(in_channels=dim_inner, out_channels=dim_out, kernel_size=1, bias=bias)
         if structure_config.USE_ZERO_INIT_CONV:
             out_init = 0
         else:
@@ -83,7 +91,7 @@ class InteractionUnit(nn.Module):
         self.use_ln = structure_config.LAYER_NORM
 
         if dim_person != dim_out:
-            self.shortcut = nn.Conv3d(in_channels=dim_person, out_channels= dim_out, kernel_size= 1, bias=bias)
+            self.shortcut = nn.Conv3d(in_channels=dim_person, out_channels=dim_out, kernel_size=1, bias=bias)
             init_layer(self.shortcut, init_std, bias)
         else:
             self.shortcut = None
@@ -106,36 +114,35 @@ class InteractionUnit(nn.Module):
 
         query_batch = self.query(query_batch)
         key_batch = self.key(key).contiguous().view(n, self.max_others, self.dim_inner, t_others, h_others, w_others)
-        value_batch = self.value(key).contiguous().view(n, self.max_others, self.dim_inner, t_others, h_others,
-                                                        w_others)
+        value_batch = (
+            self.value(key).contiguous().view(n, self.max_others, self.dim_inner, t_others, h_others, w_others)
+        )
 
         if self.temp_pos_len > 0:
             max_person_per_sec = max_others // self.temp_pos_len
-            key_batch = key_batch.contiguous().view(n, self.temp_pos_len, max_person_per_sec, self.dim_inner, t_others,
-                                                    h_others,
-                                                    w_others)
+            key_batch = key_batch.contiguous().view(
+                n, self.temp_pos_len, max_person_per_sec, self.dim_inner, t_others, h_others, w_others
+            )
             key_batch = key_batch + self.temporal_position_k
-            key_batch = key_batch.contiguous().view(n, self.max_others, self.dim_inner, t_others,
-                                                                    h_others, w_others)
+            key_batch = key_batch.contiguous().view(n, self.max_others, self.dim_inner, t_others, h_others, w_others)
 
-            value_batch = value_batch.contiguous().view(n, self.temp_pos_len, max_person_per_sec, self.dim_inner,
-                                                        t_others,
-                                                        h_others, w_others)
+            value_batch = value_batch.contiguous().view(
+                n, self.temp_pos_len, max_person_per_sec, self.dim_inner, t_others, h_others, w_others
+            )
             value_batch = value_batch + self.temporal_position_v
-            value_batch = value_batch.contiguous().view(n, self.max_others, self.dim_inner, t_others,
-                                                                        h_others, w_others)
+            value_batch = value_batch.contiguous().view(
+                n, self.max_others, self.dim_inner, t_others, h_others, w_others
+            )
 
         query_batch = query_batch.contiguous().view(n, self.dim_inner, -1).transpose(1, 2)  # [n, thw, dim_inner]
         key_batch = key_batch.contiguous().view(n, self.max_others, self.dim_inner, -1).transpose(2, 3)
-        key_batch = key_batch.contiguous().view(n, self.max_others * t_others * h_others * w_others, -1).transpose(
-            1, 2)
+        key_batch = key_batch.contiguous().view(n, self.max_others * t_others * h_others * w_others, -1).transpose(1, 2)
 
         qk = torch.bmm(query_batch, key_batch)  # n, thw, max_other * thw
 
         qk_sc = qk * self.scale_value
 
         weight = self.softmax(qk_sc)
-
 
         value_batch = value_batch.contiguous().view(n, self.max_others, self.dim_inner, -1).transpose(2, 3)
         value_batch = value_batch.contiguous().view(n, self.max_others * t_others * h_others * w_others, -1)
@@ -147,8 +154,7 @@ class InteractionUnit(nn.Module):
 
         if self.use_ln:
             if not hasattr(self, "layer_norm"):
-                self.layer_norm = nn.LayerNorm([self.dim_inner, t, h, w], elementwise_affine=False).to(
-                    device)
+                self.layer_norm = nn.LayerNorm([self.dim_inner, t, h, w], elementwise_affine=False).to(device)
             out = self.layer_norm(out)
 
         out = self.relu(out)
@@ -174,8 +180,8 @@ class HITStructure(nn.Module):
         self.max_person = structure_cfg.MAX_PERSON
         self.max_object = structure_cfg.MAX_OBJECT
         self.max_hand = structure_cfg.MAX_HAND
-        self.mem_len = structure_cfg.LENGTH[0] + structure_cfg.LENGTH[1] + 1 # 61
-        self.mem_feature_len = self.mem_len * structure_cfg.MAX_PER_SEC # 61 * 5 = 305
+        self.mem_len = structure_cfg.LENGTH[0] + structure_cfg.LENGTH[1] + 1  # 61
+        self.mem_feature_len = self.mem_len * structure_cfg.MAX_PER_SEC  # 61 * 5 = 305
 
         self.I_block_list = structure_cfg.I_BLOCK_LIST
 
@@ -187,48 +193,67 @@ class HITStructure(nn.Module):
         self.has_M = has_memory(structure_cfg)
         self.has_H = has_hand(structure_cfg)
 
-        self.person_dim_reduce = nn.Conv3d(in_channels=dim_person, out_channels= self.dim_inner, kernel_size= 1, bias=bias)  # reduce person query
+        self.person_dim_reduce = nn.Conv3d(
+            in_channels=dim_person, out_channels=self.dim_inner, kernel_size=1, bias=bias
+        )  # reduce person query
         init_layer(self.person_dim_reduce, conv_init_std, bias)
         self.reduce_dropout = nn.Dropout(structure_cfg.DROPOUT)
 
         # Init Temporal
-        self.mem_dim_reduce = nn.Conv3d(in_channels=dim_mem, out_channels= self.dim_inner, kernel_size= 1, bias=bias)
+        self.mem_dim_reduce = nn.Conv3d(in_channels=dim_mem, out_channels=self.dim_inner, kernel_size=1, bias=bias)
         init_layer(self.mem_dim_reduce, conv_init_std, bias)
 
         # Init Person
-        self.person_key_dim_reduce = nn.Conv3d(in_channels=dim_person, out_channels= self.dim_inner, kernel_size= 1, bias=bias)  # reduce person key
+        self.person_key_dim_reduce = nn.Conv3d(
+            in_channels=dim_person, out_channels=self.dim_inner, kernel_size=1, bias=bias
+        )  # reduce person key
         init_layer(self.person_key_dim_reduce, conv_init_std, bias)
 
         # Init Object
-        self.object_dim_reduce = nn.Conv3d(in_channels=dim_person, out_channels= self.dim_inner, kernel_size= 1, bias=bias)
+        self.object_dim_reduce = nn.Conv3d(
+            in_channels=dim_person, out_channels=self.dim_inner, kernel_size=1, bias=bias
+        )
         init_layer(self.object_dim_reduce, conv_init_std, bias)
 
         # Init Hand
-        self.hand_dim_reduce = nn.Conv3d(in_channels=dim_person, out_channels= self.dim_inner, kernel_size= 1, bias=bias)
+        self.hand_dim_reduce = nn.Conv3d(in_channels=dim_person, out_channels=self.dim_inner, kernel_size=1, bias=bias)
         init_layer(self.hand_dim_reduce, conv_init_std, bias)
 
-
-    def forward(self, person, person_boxes, obj_feature, object_boxes, hand_feature, hand_boxes, mem_feature, person_pooled, ia_feature, phase):
+    def forward(
+        self,
+        person,
+        person_boxes,
+        obj_feature,
+        object_boxes,
+        hand_feature,
+        hand_boxes,
+        mem_feature,
+        person_pooled,
+        ia_feature,
+        phase,
+    ):
         # RGB stream
         if phase == "rgb":
-            query, person_key, object_key, hand_key, mem_key = self._reduce_dim(person, person_boxes, obj_feature, object_boxes, hand_feature, hand_boxes,
-                                                                    mem_feature, phase)
+            query, person_key, object_key, hand_key, mem_key = self._reduce_dim(
+                person, person_boxes, obj_feature, object_boxes, hand_feature, hand_boxes, mem_feature, phase
+            )
 
             return self._aggregate(person_boxes, query, person_key, object_key, hand_key, mem_key)
         # Pose stream
         else:
             person_key = person_pooled
 
-            query, _, object_key, hand_key, mem_key = self._reduce_dim(person, person_boxes, obj_feature, person_boxes, hand_feature, person_boxes,
-                                                                    mem_feature, phase)
+            query, _, object_key, hand_key, mem_key = self._reduce_dim(
+                person, person_boxes, obj_feature, person_boxes, hand_feature, person_boxes, mem_feature, phase
+            )
             pose_feats, _, _, _ = self._aggregate(person_boxes, query, person_key, object_key, hand_key, mem_key)
 
             # Attentive Fusion and Temporal Interaction
             return self._fuse(ia_feature, pose_feats, mem_key)
 
-
-
-    def _reduce_dim(self, person, person_boxes, obj_feature, object_boxes, hand_feature, hand_boxes, mem_feature, phase):
+    def _reduce_dim(
+        self, person, person_boxes, obj_feature, object_boxes, hand_feature, hand_boxes, mem_feature, phase
+    ):
         query = self.person_dim_reduce(person)
         query = self.reduce_dropout(query)
         n = query.size(0)
@@ -240,8 +265,7 @@ class HITStructure(nn.Module):
             person_key = None
 
         if self.has_O and obj_feature != None:
-            object_key = separate_roi_per_person(person_boxes, obj_feature, object_boxes,
-                                                 self.max_object)
+            object_key = separate_roi_per_person(person_boxes, obj_feature, object_boxes, self.max_object)
             object_key = fuse_batch_num(object_key)
             object_key = self.object_dim_reduce(object_key)
             object_key = unfuse_batch_num(object_key, n, self.max_object)
@@ -249,11 +273,9 @@ class HITStructure(nn.Module):
         else:
             object_key = None
 
-
         if self.has_H and hand_feature != None:
 
-            hand_key = separate_roi_per_person(person_boxes, hand_feature, hand_boxes,
-                                                    self.max_hand)
+            hand_key = separate_roi_per_person(person_boxes, hand_feature, hand_boxes, self.max_hand)
             hand_key = fuse_batch_num(hand_key)
             hand_key = self.hand_dim_reduce(hand_key)
             hand_key = unfuse_batch_num(hand_key, n, self.max_hand)
@@ -291,9 +313,16 @@ class HITStructure(nn.Module):
         else:
             raise KeyError("Unrecognized interaction block type '{}'!".format(block_type))
 
-        I_block = InteractionUnit(dim_person, dim_other, dim_out, dim_inner,
-                                   structure_cfg, max_others,
-                                   temp_pos_len=temp_pos_len, dropout=dropout)
+        I_block = InteractionUnit(
+            dim_person,
+            dim_other,
+            dim_out,
+            dim_inner,
+            structure_cfg,
+            max_others,
+            temp_pos_len=temp_pos_len,
+            dropout=dropout,
+        )
 
         self.add_module(block_name, I_block)
 
@@ -308,8 +337,9 @@ class SerialHITStructure(HITStructure):
             block_count[block_type] = block_count.get(block_type, 0) + 1
             name = block_type + "_block_{}".format(block_count[block_type])
             dim_out_trans = dim_out if (idx == len(self.I_block_list) - 1) else self.dim_inner
-            self._make_interaction_block(block_type, name, self.dim_inner, self.dim_inner,
-                                         dim_out_trans, self.dim_inner, structure_cfg)
+            self._make_interaction_block(
+                block_type, name, self.dim_inner, self.dim_inner, dim_out_trans, self.dim_inner, structure_cfg
+            )
 
     def _aggregate(self, person_boxes, query, person_key, object_key, hand_key, mem_key):
         block_count = dict()
@@ -318,7 +348,12 @@ class SerialHITStructure(HITStructure):
             name = block_type + "_block_{}".format(block_count[block_type])
             I_block = getattr(self, name)
             if block_type == "P":
-                person_key = separate_roi_per_person(person_boxes, person_key, person_boxes, self.max_person, )
+                person_key = separate_roi_per_person(
+                    person_boxes,
+                    person_key,
+                    person_boxes,
+                    self.max_person,
+                )
                 query = I_block(query, person_key)
             elif block_type == "O":
                 query = I_block(query, object_key)
@@ -330,6 +365,7 @@ class SerialHITStructure(HITStructure):
 
         return query
 
+
 @registry.INTERACTION_AGGREGATION_STRUCTURES.register("hitnet")
 class HITNet(SerialHITStructure):
     # This is the main class of our framework. Both RGB and Pose
@@ -337,25 +373,24 @@ class HITNet(SerialHITStructure):
         super(HITNet, self).__init__(dim_person, dim_mem, dim_out, structure_cfg)
         self.dense_params = nn.ParameterDict()
         for idx in range(2, len(self.I_block_list)):
-            init_tensor = torch.full((idx, self.dim_inner, 1, 1, 1),
-                                     -5 * math.log(10), dtype=torch.float32)
+            init_tensor = torch.full((idx, self.dim_inner, 1, 1, 1), -5 * math.log(10), dtype=torch.float32)
             init_tensor[idx - 1, ...] = 0
             self.dense_params[str(idx)] = nn.Parameter(init_tensor)
 
         self.dense_params_lateral = nn.ParameterDict()
-        init_tensor_lateral = torch.full((len(self.I_block_list)//2, self.dim_inner, 1, 1, 1),
-                                         -2 * math.log(10), dtype=torch.float32)
+        init_tensor_lateral = torch.full(
+            (len(self.I_block_list) // 2, self.dim_inner, 1, 1, 1), -2 * math.log(10), dtype=torch.float32
+        )
         self.dense_params_lateral = nn.Parameter(init_tensor_lateral)
 
         self.softmax = nn.Softmax(dim=0)
-        self.conv_reduce = nn.Conv3d(in_channels=dim_mem, out_channels= self.dim_inner, kernel_size= 1, bias=False)
+        self.conv_reduce = nn.Conv3d(in_channels=dim_mem, out_channels=self.dim_inner, kernel_size=1, bias=False)
 
-
-        self.non_local = NL(hidden_dim = 2*self.dim_inner, out_dim = self.dim_inner)
+        self.non_local = NL(hidden_dim=2 * self.dim_inner, out_dim=self.dim_inner)
 
     # Lateral units. They will serve as inputs to the intra-modality aggregator
     def aggregate_lateral(self, I_block_object, I_block_hand, I_block_memory, query, object_key, hand_key, mem_key):
-        object_feat= I_block_object(query, object_key)
+        object_feat = I_block_object(query, object_key)
         hand_feat = I_block_hand(query, hand_key)
         mem_feat = I_block_memory(query, mem_key)
         return object_feat, mem_feat, hand_feat
@@ -370,25 +405,30 @@ class HITNet(SerialHITStructure):
             I_block = getattr(self, name)
 
             # Initialize the lateral units
-            name_object = 'O' + "_block_{}".format(block_count[block_type])
+            name_object = "O" + "_block_{}".format(block_count[block_type])
             I_block_object = getattr(self, name_object)
-            name_hand = 'H' + "_block_{}".format(block_count[block_type])
+            name_hand = "H" + "_block_{}".format(block_count[block_type])
             I_block_hand = getattr(self, name_hand)
-            name_memory = 'M' + "_block_{}".format(block_count[block_type])
+            name_memory = "M" + "_block_{}".format(block_count[block_type])
             I_block_memory = getattr(self, name_memory)
-
 
             if idx >= 2:
                 query = torch.stack(history_query, dim=1)
                 query = torch.sum(query * self.softmax(self.dense_params[str(idx)]), dim=1)
                 person_key = query
             if block_type == "P":
-                person_key = separate_roi_per_person(person_boxes, person_key, person_boxes, self.max_person, )
+                person_key = separate_roi_per_person(
+                    person_boxes,
+                    person_key,
+                    person_boxes,
+                    self.max_person,
+                )
                 query = I_block(query, person_key)
                 person_message = query
             elif block_type == "O":
-                P_O, P_M, P_K = self.aggregate_lateral(I_block_object, I_block_hand, I_block_memory,
-                                                       query, object_key, hand_key, mem_key)
+                P_O, P_M, P_K = self.aggregate_lateral(
+                    I_block_object, I_block_hand, I_block_memory, query, object_key, hand_key, mem_key
+                )
                 if P_M.shape[1] == self.dim_out:
                     P_M = self.conv_reduce(P_M)
 
@@ -398,8 +438,9 @@ class HITNet(SerialHITStructure):
                 object_message = query
 
             elif block_type == "H":
-                P_O, P_M, P_K = self.aggregate_lateral(I_block_object, I_block_hand, I_block_memory,
-                                                       query, object_key, hand_key, mem_key)
+                P_O, P_M, P_K = self.aggregate_lateral(
+                    I_block_object, I_block_hand, I_block_memory, query, object_key, hand_key, mem_key
+                )
                 if P_M.shape[1] == self.dim_out:
                     P_M = self.conv_reduce(P_M)
 
@@ -410,8 +451,9 @@ class HITNet(SerialHITStructure):
 
             elif block_type == "M":
 
-                P_O, P_M, P_K = self.aggregate_lateral(I_block_object, I_block_hand, I_block_memory,
-                                                       query, object_key, hand_key, mem_key)
+                P_O, P_M, P_K = self.aggregate_lateral(
+                    I_block_object, I_block_hand, I_block_memory, query, object_key, hand_key, mem_key
+                )
                 if P_M.shape[1] == self.dim_out:
                     P_M = self.conv_reduce(P_M)
 
@@ -427,7 +469,7 @@ class HITNet(SerialHITStructure):
 
     # Attentive Fusion and Temporal Interaction
     def _fuse(self, rgb, pose, mem_key):
-        name_memory = 'M' + "_block_2"
+        name_memory = "M" + "_block_2"
         I_block_memory = getattr(self, name_memory)
         # Attentive Fusion
         query = torch.cat([rgb, pose], dim=1)
@@ -436,7 +478,6 @@ class HITNet(SerialHITStructure):
         query = I_block_memory(query, mem_key)
 
         return query
-
 
 
 def separate_roi_per_person(proposals, things, other_proposals, max_things):
@@ -456,9 +497,9 @@ def separate_roi_per_person(proposals, things, other_proposals, max_things):
         tmp = torch.zeros((person_num, max_things, c, t, h, w), device=device)
         if other_num > max_things:
             idx = torch.randperm(other_num)[:max_things]
-            tmp[:, :max_things] = things[index:index + other_num][idx]
+            tmp[:, :max_things] = things[index : index + other_num][idx]
         else:
-            tmp[:, :other_num] = things[index:index + other_num]
+            tmp[:, :other_num] = things[index : index + other_num]
 
         res.append(tmp)
         index += other_num
@@ -503,7 +544,5 @@ def init_layer(layer, init_std, bias):
 
 
 def make_hit_structure(cfg, dim_in):
-    func = registry.INTERACTION_AGGREGATION_STRUCTURES[
-        cfg.MODEL.HIT_STRUCTURE.STRUCTURE
-    ]
+    func = registry.INTERACTION_AGGREGATION_STRUCTURES[cfg.MODEL.HIT_STRUCTURE.STRUCTURE]
     return func(dim_in, cfg.MODEL.HIT_STRUCTURE.DIM_IN, cfg.MODEL.HIT_STRUCTURE.DIM_OUT, cfg.MODEL.HIT_STRUCTURE)
