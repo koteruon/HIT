@@ -11,7 +11,7 @@ from PIL import Image
 
 from hit.dataset.datasets.iou_calculator import iou
 from hit.structures.bounding_box import BoxList
-from hit.utils.video_decode import av_decode_video
+from hit.utils.video_decode import av_decode_video, cv2_decode_video
 
 
 # This is used to avoid pytorch issuse #13246
@@ -336,8 +336,8 @@ class DatasetEngine(data.Dataset):
         right_frames = []
         while len(right_frames) < right_span:
             video_path = os.path.join(video_folder, "{}.mp4".format(cur_t))
-            # frames = cv2_decode_video(video_path)
-            frames = av_decode_video(video_path)
+            frames = cv2_decode_video(video_path)
+            # frames = av_decode_video(video_path)
             if len(frames) == 0:
                 raise RuntimeError("Video {} cannot be decoded.".format(video_path))
             right_frames = right_frames + frames
@@ -348,8 +348,8 @@ class DatasetEngine(data.Dataset):
         left_frames = []
         while len(left_frames) < left_span:
             video_path = os.path.join(video_folder, "{}.mp4".format(cur_t))
-            # frames = cv2_decode_video(video_path)
-            frames = av_decode_video(video_path)
+            frames = cv2_decode_video(video_path)
+            # frames = av_decode_video(video_path)
             if len(frames) == 0:
                 raise RuntimeError("Video {} cannot be decoded.".format(video_path))
             left_frames = frames + left_frames
