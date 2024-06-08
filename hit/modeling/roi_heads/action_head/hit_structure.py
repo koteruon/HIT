@@ -44,12 +44,6 @@ class NL(nn.Module):
 
 
 class InteractionUnit(nn.Module):
-    """_summary_
-
-    Args:
-        nn (_type_): _description_
-    """
-
     def __init__(
         self,
         dim_person,
@@ -105,8 +99,6 @@ class InteractionUnit(nn.Module):
         if self.temp_pos_len > 0:
             self.temporal_position_k = nn.Parameter(torch.zeros(temp_pos_len, 1, self.dim_inner, 1, 1, 1))
             self.temporal_position_v = nn.Parameter(torch.zeros(temp_pos_len, 1, self.dim_inner, 1, 1, 1))
-
-        self.input_mapping_resize = nn.Linear(16, 1024)
 
     def forward(self, person, others):
         """
@@ -175,139 +167,6 @@ class InteractionUnit(nn.Module):
 
         out = out + person
         return out
-
-
-###AVA 特別制定模型 start
-class HITStructure_AVA(nn.Module):
-    def __init__(self, dim_person, dim_mem, dim_out, structure_cfg):
-        super(HITStructure_AVA, self).__init__()
-        self.dim_person = dim_person
-        self.dim_others = dim_mem
-        self.dim_inner = structure_cfg.DIM_INNER
-        self.dim_out = dim_out
-
-        self.max_person = structure_cfg.MAX_PERSON
-        self.mem_len = structure_cfg.LENGTH[0] + structure_cfg.LENGTH[1] + 1  # 61
-        self.mem_feature_len = self.mem_len * structure_cfg.MAX_PER_SEC  # 61 * 5 = 305
-
-        self.I_block_list = structure_cfg.I_BLOCK_LIST
-
-        bias = not structure_cfg.NO_BIAS
-        conv_init_std = structure_cfg.CONV_INIT_STD
-
-        self.has_P = has_person(structure_cfg)
-        self.has_M = has_memory(structure_cfg)
-
-        self.person_dim_reduce = nn.Conv3d(
-            in_channels=dim_person, out_channels=self.dim_inner, kernel_size=1, bias=bias
-        )  # reduce person query
-        init_layer(self.person_dim_reduce, conv_init_std, bias)
-        self.reduce_dropout = nn.Dropout(structure_cfg.DROPOUT)
-
-        # Init Temporal
-        self.mem_dim_reduce = nn.Conv3d(in_channels=dim_mem, out_channels=self.dim_inner, kernel_size=1, bias=bias)
-        init_layer(self.mem_dim_reduce, conv_init_std, bias)
-
-        # Init Person
-        self.person_key_dim_reduce = nn.Conv3d(
-            in_channels=dim_person, out_channels=self.dim_inner, kernel_size=1, bias=bias
-        )  # reduce person key
-        init_layer(self.person_key_dim_reduce, conv_init_std, bias)
-
-    def forward(self, person, person_boxes, mem_feature, context_interaction, phase):
-        # RGB stream
-        if phase == "rgb":
-            query, person_key, mem_key = self._reduce_dim(person, person_boxes, mem_feature, phase)
-
-            return self._aggregate(person_boxes, query, person_key, mem_key, context_interaction)
-
-    def _reduce_dim(self, person, person_boxes, mem_feature, phase):
-        query = self.person_dim_reduce(person)
-        query = self.reduce_dropout(query)
-        n = query.size(0)
-
-        if self.has_P:
-            person_key = self.person_key_dim_reduce(person)
-            person_key = self.reduce_dropout(person_key)
-        else:
-            person_key = None
-
-        if self.has_M and mem_feature != None:
-            mem_key = separate_batch_per_person(person_boxes, mem_feature)
-            mem_key = fuse_batch_num(mem_key)
-            mem_key = self.mem_dim_reduce(mem_key)
-            mem_key = unfuse_batch_num(mem_key, n, self.mem_feature_len)
-            mem_key = self.reduce_dropout(mem_key)
-        else:
-            mem_key = None
-
-        return query, person_key, mem_key
-
-    def _aggregate(self, proposals, query, person_key, mem_key):
-        raise NotImplementedError
-
-    def _make_interaction_block(self, block_type, block_name, dim_person, dim_other, dim_out, dim_inner, structure_cfg):
-        dropout = structure_cfg.DROPOUT
-        temp_pos_len = -1
-        if block_type == "P":
-            max_others = self.max_person
-        elif block_type == "M":
-            max_others = self.mem_feature_len
-            if structure_cfg.TEMPORAL_POSITION:
-                temp_pos_len = self.mem_len
-        else:
-            raise KeyError("Unrecognized interaction block type '{}'!".format(block_type))
-
-        I_block = InteractionUnit(
-            dim_person,
-            dim_other,
-            dim_out,
-            dim_inner,
-            structure_cfg,
-            max_others,
-            temp_pos_len=temp_pos_len,
-            dropout=dropout,
-        )
-
-        self.add_module(block_name, I_block)
-
-
-@registry.INTERACTION_AGGREGATION_STRUCTURES.register("serial_ava")
-class SerialHITStructure_AVA(HITStructure_AVA):
-    def __init__(self, dim_person, dim_mem, dim_out, structure_cfg):
-        super(SerialHITStructure_AVA, self).__init__(dim_person, dim_mem, dim_out, structure_cfg)
-        block_count = dict()
-        for idx, block_type in enumerate(self.I_block_list):
-            block_count[block_type] = block_count.get(block_type, 0) + 1
-            name = block_type + "_block_{}".format(block_count[block_type])
-            dim_out_trans = self.dim_inner if idx != len(self.I_block_list) - 1 else 2304
-            self._make_interaction_block(
-                block_type, name, self.dim_inner, self.dim_inner, dim_out_trans, self.dim_inner, structure_cfg
-            )
-
-    def _aggregate(self, person_boxes, query, person_key, mem_key, context_interaction):
-        block_count = dict()
-        for idx, block_type in enumerate(self.I_block_list):
-            block_count[block_type] = block_count.get(block_type, 0) + 1
-            name = block_type + "_block_{}".format(block_count[block_type])
-            I_block = getattr(self, name)
-            if block_type == "P":
-                person_key = separate_roi_per_person(
-                    person_boxes,
-                    person_key,
-                    person_boxes,
-                    self.max_person,
-                )
-                query = I_block(query, person_key)
-
-            elif block_type == "M":
-                query = I_block(query, mem_key)
-            person_key = query
-
-        return query
-
-
-###AVA 特別制定模型 end
 
 
 class HITStructure(nn.Module):
@@ -650,7 +509,6 @@ def separate_roi_per_person(proposals, things, other_proposals, max_things):
 
 def separate_batch_per_person(proposals, things):
     """
-
     :param things: [b, max_others, c, t, h, w]
     :return [n, max_others, c, t, h, w]
     """

@@ -2,11 +2,11 @@ import math
 
 
 def batch_different_videos(videos, size_divisible=0):
-    """
+    '''
     :param videos: a list of video tensors
     :param size_divisible: output_size(width and height) should be divisble by this param
     :return: batched videos as a single tensor
-    """
+    '''
     assert isinstance(videos, (tuple, list))
     max_size = tuple(max(s) for s in zip(*[clip.shape for clip in videos]))
 
@@ -20,7 +20,7 @@ def batch_different_videos(videos, size_divisible=0):
     batch_shape = (len(videos),) + max_size
     batched_clips = videos[0].new(*batch_shape).zero_()
     for clip, pad_clip in zip(videos, batched_clips):
-        pad_clip[: clip.shape[0], : clip.shape[1], : clip.shape[2], : clip.shape[3]].copy_(clip)
+        pad_clip[:clip.shape[0], :clip.shape[1], :clip.shape[2], :clip.shape[3]].copy_(clip)
 
     return batched_clips
 
@@ -38,20 +38,13 @@ class BatchCollator(object):
 
     def __call__(self, batch):
         transposed_batch = list(zip(*batch))
-        transposed_batch_size = len(transposed_batch)
-        if transposed_batch_size == 7:
-            slow_clips = batch_different_videos(transposed_batch[0], self.size_divisible)
-            fast_clips = batch_different_videos(transposed_batch[1], self.size_divisible)
-            boxes = transposed_batch[2]
-            objects = transposed_batch[3]
-            keypoints = transposed_batch[4]
-            extras = transposed_batch[5]
-            clip_ids = transposed_batch[6]
-            return slow_clips, fast_clips, boxes, objects, keypoints, extras, clip_ids
-        elif transposed_batch_size == 5:
-            slow_clips = batch_different_videos(transposed_batch[0], self.size_divisible)
-            fast_clips = batch_different_videos(transposed_batch[1], self.size_divisible)
-            boxes = transposed_batch[2]
-            extras = transposed_batch[3]
-            clip_ids = transposed_batch[4]
-            return slow_clips, fast_clips, boxes, extras, clip_ids
+        slow_clips = batch_different_videos(transposed_batch[0], self.size_divisible)
+        fast_clips = batch_different_videos(transposed_batch[1], self.size_divisible)
+        boxes = transposed_batch[2]
+        # for b in boxes:
+        #     b.extra_fields['labels'] = b.extra_fields['labels'][:, :24]
+        objects = transposed_batch[3]
+        keypoints = transposed_batch[4]
+        extras = transposed_batch[5]
+        clip_ids = transposed_batch[6]
+        return slow_clips, fast_clips, boxes, objects, keypoints, extras, clip_ids

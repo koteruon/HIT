@@ -49,12 +49,6 @@ MODEL:
     DIM_INNER: 1024
     DIM_OUT: 2304
     I_BLOCK_LIST: [ "P", "O", "H", "M", "P", "O", "H", "M", ]
-  ACTION_DETECTOR:
-    STRUCTURE: "ActionDetector"
-  COMBINED_3D_ROIHEADS:
-    STRUCTURE: "Combined3dROIHeads"
-  ROIActionHead:
-    STRUCTURE: "ROIActionHead"
 INPUT:
   FRAME_NUM: 64
   FRAME_SAMPLE_RATE: 1
