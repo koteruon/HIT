@@ -25,11 +25,21 @@ def compute_on_dataset_1stage(model, data_loader, device):
         slow_clips = slow_clips.to(device)
         fast_clips = fast_clips.to(device)
         boxes = [box.to(device) for box in boxes]
-        objects = [None if (box is None) else box.to(device) for box in objects]
-        keypoints = [None if (box is None) else box.to(device) for box in keypoints]
-
+        objects = (
+            None
+            if all(box is None for box in objects)
+            else [None if (box is None) else box.to(device) for box in objects]
+        )
+        keypoints = (
+            None
+            if all(box is None for box in keypoints)
+            else [None if (box is None) else box.to(device) for box in keypoints]
+        )
         with torch.no_grad():
-            output = model(slow_clips, fast_clips, boxes, objects, keypoints, extras)
+            if keypoints is None and objects is None:
+                output = model(slow_clips, fast_clips, boxes, extras)
+            else:
+                output = model(slow_clips, fast_clips, boxes, objects, keypoints, extras)
             output = [o.to(cpu_device) for o in output]
         results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
 
@@ -59,34 +69,57 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
         slow_clips = slow_clips.to(device)
         fast_clips = fast_clips.to(device)
         boxes = [box.to(device) for box in boxes]
-        objects = [None if (box is None) else box.to(device) for box in objects]
+        objects = (
+            None
+            if all(box is None for box in objects)
+            else [None if (box is None) else box.to(device) for box in objects]
+        )
+        keypoints = None if all(box is None for box in keypoints) else keypoints
         movie_ids = [e["movie_id"] for e in extras]
         timestamps = [e["timestamp"] for e in extras]
         with torch.no_grad():
-            feature = model(slow_clips, fast_clips, boxes, objects, keypoints, part_forward=0)
+            if keypoints is None and objects is None:
+                feature = model(slow_clips, fast_clips, boxes, part_forward=0)
+            else:
+                feature = model(slow_clips, fast_clips, boxes, objects, keypoints, part_forward=0)
+
             person_feature = [ft.to(cpu_device) for ft in feature[0]]
-            object_feature = [ft.to(cpu_device) for ft in feature[1]]
-            hand_feature = [ft.to(cpu_device) for ft in feature[2]]
-            poses_feature = [ft.to(cpu_device) for ft in feature[3]]
+            if keypoints is None and objects is None:
+                object_feature = None
+                hand_feature = None
+                poses_feature = None
+                context_feature = [ft.to(cpu_device) for ft in feature[1]]
+            else:
+                object_feature = [ft.to(cpu_device) for ft in feature[1]]
+                hand_feature = [ft.to(cpu_device) for ft in feature[2]]
+                poses_feature = [ft.to(cpu_device) for ft in feature[3]]
         # store person features into memory pool
-        for j, (
-            movie_id,
-            timestamp,
-            p_ft,
-            o_ft,
-        ) in enumerate(zip(movie_ids, timestamps, person_feature, object_feature)):
-            person_feature_pool[movie_id, timestamp] = p_ft
-        # store other information in list, for further inference
-        batch_info_list[i] = (
-            movie_ids,
-            timestamps,
-            video_ids,
-            object_feature,
-            hand_feature,
-            poses_feature,
-            [b.extra_fields["det_score"] for b in boxes],
-        )
-        # break
+        if keypoints is None and objects is None:
+            for j, (movie_id, timestamp, p_ft) in enumerate(zip(movie_ids, timestamps, person_feature)):
+                person_feature_pool[movie_id, timestamp] = p_ft
+            # store other information in list, for further inference
+            batch_info_list[i] = (
+                movie_ids,
+                timestamps,
+                video_ids,
+                context_feature,
+                [b.extra_fields["det_score"] for b in boxes],
+            )
+        else:
+            for j, (movie_id, timestamp, p_ft, o_ft) in enumerate(
+                zip(movie_ids, timestamps, person_feature, object_feature)
+            ):
+                person_feature_pool[movie_id, timestamp] = p_ft
+            # store other information in list, for further inference
+            batch_info_list[i] = (
+                movie_ids,
+                timestamps,
+                video_ids,
+                object_feature,
+                hand_feature,
+                poses_feature,
+                [b.extra_fields["det_score"] for b in boxes],
+            )
 
     # gather feature pools from different ranks
     synchronize()
@@ -106,31 +139,51 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
     results_dict = {}
     logger.info("Stage 2: predicting with extracted feature.")
     start_time = time.time()
-    for movie_ids, timestamps, video_ids, object_feature, hand_feature, poses_feature, det_scores in tqdm(
-        batch_info_list, **extra_args
-    ):
-        current_feat_p = [
-            all_feature_pool_p[movie_id, timestamp].to(device) for movie_id, timestamp in zip(movie_ids, timestamps)
-        ]
-        current_feat_o = [ft_o.to(device) for ft_o in object_feature]
-        current_feat_h = [ft_k.to(device) for ft_k in hand_feature]
-        current_feat_pose = [ft_k.to(device) for ft_k in poses_feature]
-        extras = dict(
-            person_pool=all_feature_pool_p,
-            movie_ids=movie_ids,
-            timestamps=timestamps,
-            current_feat_p=current_feat_p,
-            current_feat_o=current_feat_o,
-            current_feat_h=current_feat_h,
-            current_feat_pose=current_feat_pose,
-        )
-        with torch.no_grad():
-            output = model(None, None, None, None, extras=extras, part_forward=1)
-            output = [o.to(cpu_device) for o in output]
-            det_scores = [d.to(cpu_device) for d in det_scores]
-            for i, o in enumerate(output):
-                output[i].extra_fields["scores"] = output[i].extra_fields["scores"] * det_scores[i].unsqueeze(1)
-        results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
+    if object_feature is None and hand_feature is None and poses_feature is None:
+        for movie_ids, timestamps, video_ids, context_feature, det_scores in tqdm(batch_info_list, **extra_args):
+            current_feat_p = [
+                all_feature_pool_p[movie_id, timestamp].to(device) for movie_id, timestamp in zip(movie_ids, timestamps)
+            ]
+            current_feat_context = [ft_k.to(device) for ft_k in context_feature]
+            extras = dict(
+                person_pool=all_feature_pool_p,
+                movie_ids=movie_ids,
+                timestamps=timestamps,
+                current_feat_p=current_feat_p,
+                current_feat_context=current_feat_context,
+            )
+            # det_score
+            with torch.no_grad():
+                output = model(None, None, None, extras=extras, part_forward=1)
+                output = [o.to(cpu_device) for o in output]
+
+            results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
+    else:
+        for movie_ids, timestamps, video_ids, object_feature, hand_feature, poses_feature, det_scores in tqdm(
+            batch_info_list, **extra_args
+        ):
+            current_feat_p = [
+                all_feature_pool_p[movie_id, timestamp].to(device) for movie_id, timestamp in zip(movie_ids, timestamps)
+            ]
+            current_feat_o = [ft_o.to(device) for ft_o in object_feature]
+            current_feat_h = [ft_k.to(device) for ft_k in hand_feature]
+            current_feat_pose = [ft_k.to(device) for ft_k in poses_feature]
+            extras = dict(
+                person_pool=all_feature_pool_p,
+                movie_ids=movie_ids,
+                timestamps=timestamps,
+                current_feat_p=current_feat_p,
+                current_feat_o=current_feat_o,
+                current_feat_h=current_feat_h,
+                current_feat_pose=current_feat_pose,
+            )
+            with torch.no_grad():
+                output = model(None, None, None, None, extras=extras, part_forward=1)
+                output = [o.to(cpu_device) for o in output]
+                det_scores = [d.to(cpu_device) for d in det_scores]
+                for i, o in enumerate(output):
+                    output[i].extra_fields["scores"] = output[i].extra_fields["scores"] * det_scores[i].unsqueeze(1)
+            results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
     synchronize()
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=total_time))
@@ -139,7 +192,6 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             total_time_str, total_time * num_devices / len(dataset), num_devices
         )
     )
-    del batch_info_list, output, extras, movie_ids, timestamps, video_ids, object_feature
     return results_dict
 
 

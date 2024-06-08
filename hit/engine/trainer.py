@@ -3,7 +3,6 @@ import logging
 import time
 
 import torch
-
 from hit.engine.inference import inference
 from hit.structures.memory_pool import MemoryPool
 from hit.utils.comm import all_gather, reduce_dict, synchronize
@@ -61,10 +60,12 @@ def do_train(
             mem_extras["movie_ids"] = movie_ids
             mem_extras["timestamps"] = timestamps
             mem_extras["cur_loss"] = losses_reduced.item()
-
-        loss_dict, weight_dict, metric_dict, pooled_feature = model(
-            slow_video, fast_video, boxes, objects, keypoints, mem_extras
-        )
+        if keypoints is None and objects is None:
+            loss_dict, weight_dict, metric_dict, pooled_feature = model(slow_video, fast_video, boxes, mem_extras)
+        else:
+            loss_dict, weight_dict, metric_dict, pooled_feature = model(
+                slow_video, fast_video, boxes, objects, keypoints, mem_extras
+            )
 
         losses = sum([loss_dict[k] * weight_dict[k] for k in loss_dict])
 
