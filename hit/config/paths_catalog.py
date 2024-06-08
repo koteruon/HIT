@@ -51,10 +51,34 @@ class DatasetCatalog(object):
                 "labelmap_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_action_list_v2.2_for_activitynet_2019.pbtxt",
                 "exclusion_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_train_excluded_timestamps_v2.2.csv",
             },
+            "object_file": "/home/siplab2/chaoen/data/AVA/boxes/ava_train_det_object_bbox.json",
+            "keypoints_file": "/home/siplab2/chaoen/data/AVA/annotations/AVA_train_kpts_detectron.json",
+        },
+        "ava_video_val_v2.2": {
+            "video_root": "/home/siplab2/chaoen/data/AVA/clips/trainval",
+            "ann_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_val_v2.2_min.json",
+            "box_file": "/home/siplab2/chaoen/data/AVA/boxes/ava_val_det_person_bbox.json",
+            "eval_file_paths": {
+                "csv_gt_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_val_v2.2.csv",
+                "labelmap_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_action_list_v2.2_for_activitynet_2019.pbtxt",
+                "exclusion_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_val_excluded_timestamps_v2.2.csv",
+            },
+            "object_file": "/home/siplab2/chaoen/data/AVA/boxes/ava_val_det_object_bbox.json",
+            "keypoints_file": "/home/siplab2/chaoen/data/AVA/annotations/AVA_val_kpts_detectron.json",
+        },
+        "ava_video_train_v2.2_no_pose": {
+            "video_root": "/home/siplab2/chaoen/data/AVA/clips/trainval",
+            "ann_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_train_v2.2_min.json",
+            "box_file": "",
+            "eval_file_paths": {
+                "csv_gt_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_train_v2.2.csv",
+                "labelmap_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_action_list_v2.2_for_activitynet_2019.pbtxt",
+                "exclusion_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_train_excluded_timestamps_v2.2.csv",
+            },
             "object_file": "",
             "keypoints_file": "",
         },
-        "ava_video_val_v2.2": {
+        "ava_video_val_v2.2_no_pose": {
             "video_root": "/home/siplab2/chaoen/data/AVA/clips/trainval",
             "ann_file": "/home/siplab2/chaoen/data/AVA/annotations/ava_val_v2.2_min.json",
             "box_file": "/home/siplab2/chaoen/data/AVA/boxes/ava_val_det_person_bbox.json",

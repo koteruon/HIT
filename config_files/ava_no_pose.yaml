@@ -19,7 +19,7 @@ MODEL:
     BN_INIT_GAMMA: 0.0
     FROZEN_BN: True
   ROI_ACTION_HEAD:
-    FEATURE_EXTRACTOR: "2MLPFeatureExtractor"
+    FEATURE_EXTRACTOR: "2MLPFeatureExtractor_AVA"
     POOLER_TYPE: "align3d"
     MEAN_BEFORE_POOLER: True
     POOLER_RESOLUTION: 7
@@ -36,25 +36,25 @@ MODEL:
     PERSON_LOSS_WEIGHT: 17.0
   HIT_STRUCTURE:
     ACTIVE: True
-    STRUCTURE: "hitnet"
+    STRUCTURE: "serial_ava"
     DROPOUT: 0.2
     FUSION: "add"
     TEMPORAL_POSITION: True
     USE_ZERO_INIT_CONV: True
     LAYER_NORM: True
     MAX_PERSON: 25
-    MAX_HAND: 10
-    MAX_OBJECT: 5
+    MAX_HAND: 25
+    MAX_OBJECT: 0
     MAX_PER_SEC: 5
     DIM_INNER: 1024
     DIM_OUT: 2304
-    I_BLOCK_LIST: [ "P", "O", "H", "M", "P", "O", "H", "M", ]
+    I_BLOCK_LIST: [ "P",  "M", "P",  "M" ]
   ACTION_DETECTOR:
-    STRUCTURE: "ActionDetector"
+    STRUCTURE: "ActionDetector_AVA"
   COMBINED_3D_ROIHEADS:
-    STRUCTURE: "Combined3dROIHeads"
+    STRUCTURE: "Combined3dROIHeads_AVA"
   ROIActionHead:
-    STRUCTURE: "ROIActionHead"
+    STRUCTURE: "ROIActionHead_AVA"
 INPUT:
   FRAME_NUM: 64
   FRAME_SAMPLE_RATE: 1
@@ -63,8 +63,8 @@ INPUT:
   SLOW_JITTER: True
   COLOR_JITTER: True
 DATASETS:
-  TRAIN: ("ava_video_train_v2.2",)
-  TEST: ("ava_video_val_v2.2",)
+  TRAIN: ("ava_video_train_v2.2_no_pose",)
+  TEST: ("ava_video_val_v2.2_no_pose",)
 DATALOADER:
   NUM_WORKERS: 4
   SIZE_DIVISIBILITY: 16
