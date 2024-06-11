@@ -1,7 +1,9 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
 import torch
 import torch.nn as nn
+
 from hit.layers import FrozenBatchNorm3d
 from hit.modeling.common_blocks import ResNLBlock
 
@@ -220,6 +222,7 @@ class FastPath(nn.Module):
         self.Tconv4 = LateralBlock(conv_dims[3], alpha)
 
     def forward(self, x):
+        outs = []
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
@@ -227,16 +230,20 @@ class FastPath(nn.Module):
         tconv1 = self.Tconv1(out)
 
         out = self.res_nl1(out)
+        outs.append(out)
         tconv2 = self.Tconv2(out)
 
         out = self.res_nl2(out)
+        outs.append(out)
         tconv3 = self.Tconv3(out)
 
         out = self.res_nl3(out)
+        outs.append(out)
         tconv4 = self.Tconv4(out)
 
         out = self.res_nl4(out)
-        return out, [tconv1, tconv2, tconv3, tconv4]
+        outs.append(out)
+        return outs, [tconv1, tconv2, tconv3, tconv4]
 
 
 class SlowPath(nn.Module):
@@ -337,28 +344,32 @@ class SlowPath(nn.Module):
         )
 
     def forward(self, x, lateral_connection=None):
+        outs = []
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
         out = self.maxpool1(out)
-
         if lateral_connection:
             out = torch.cat([out, lateral_connection[0]], dim=1)
 
         out = self.res_nl1(out)
+        outs.append(out)
         if lateral_connection:
             out = torch.cat([out, lateral_connection[1]], dim=1)
 
         out = self.res_nl2(out)
+        outs.append(out)
         if lateral_connection:
             out = torch.cat([out, lateral_connection[2]], dim=1)
 
         out = self.res_nl3(out)
+        outs.append(out)
         if lateral_connection:
             out = torch.cat([out, lateral_connection[3]], dim=1)
 
         out = self.res_nl4(out)
-        return out
+        outs.append(out)
+        return outs
 
 
 class SlowFast(nn.Module):
@@ -379,10 +390,20 @@ class SlowFast(nn.Module):
     def forward(self, slow_x, fast_x):
         tconv = None
         cfg = self.cfg
-        slowout = None
-        fastout = None
+        slowouts = None
+        fastouts = None
         if cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE:
-            fastout, tconv = self.fast(fast_x)
+            fastouts, tconv = self.fast(fast_x)
         if cfg.MODEL.BACKBONE.SLOWFAST.SLOW.ACTIVE:
-            slowout = self.slow(slow_x, tconv)
-        return slowout, fastout
+            slowouts = self.slow(slow_x, tconv)
+
+        features = []
+        t_slow = slowouts[0].shape[2]
+        t_fast = fastouts[0].shape[2]
+        kt = t_fast//t_slow
+        for i in range(len(slowouts)):
+            slowfeat = slowouts[i]
+            fastfeat = torch.max_pool3d(fastouts[i],[kt,1,1],[kt,1,1])
+            features.append(torch.cat([slowfeat,fastfeat],dim=1))
+
+        return slowouts[-1], fastouts[-1], features
