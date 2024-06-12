@@ -3,7 +3,7 @@ import logging
 import time
 
 import torch
-
+import torch.nn as nn
 from hit.engine.inference import inference
 from hit.structures.memory_pool import MemoryPool
 from hit.utils.comm import all_gather, reduce_dict, synchronize
@@ -20,11 +20,14 @@ def do_train(
     checkpoint_period,
     arguments,
     tblogger,
+    start_val,
     val_period,
     dataset_names_val,
     data_loaders_val,
     distributed,
     mem_active,
+    frozen_backbone_bn,
+    output_folders,
 ):
     logger = logging.getLogger("hit.trainer")
     logger.info("Start training")
@@ -33,6 +36,10 @@ def do_train(
     start_iter = arguments["iteration"]
     person_pool = arguments["person_pool"]
     model.train()
+    if frozen_backbone_bn:
+        for m in model.modules():
+            if isinstance(m, nn.BatchNorm3d):
+                m.eval()
     start_training_time = time.time()
     end = time.time()
     losses_reduced = torch.tensor(0.0)
@@ -43,7 +50,8 @@ def do_train(
         arguments["iteration"] = iteration
 
         slow_video = slow_video.to(device)
-        fast_video = fast_video.to(device)
+        if fast_video is not None:
+            fast_video = fast_video.to(device)
         boxes = [box.to(device) for box in boxes]
         keypoints = (
             None if all(keypoint is None for keypoint in keypoints) else [keypoint.to(device) for keypoint in keypoints]
@@ -98,7 +106,7 @@ def do_train(
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
-        if iteration % 20 == 0 or iteration == max_iter:
+        if iteration % 10 == 0 or iteration == max_iter:
             logger.info(
                 meters.delimiter.join(
                     [
@@ -130,9 +138,17 @@ def do_train(
             arguments.pop("person_pool", None)
             checkpointer.save("model_final", **arguments)
 
-        if dataset_names_val and iteration % val_period == 0:
+        if dataset_names_val and iteration > start_val and iteration % val_period == 0:
+            optimizer.zero_grad()
+            torch.cuda.empty_cache()
             # do validation
-            val_in_train(model, dataset_names_val, data_loaders_val, tblogger, iteration, distributed, mem_active)
+            val_in_train(model, dataset_names_val, data_loaders_val, tblogger, iteration, distributed, mem_active, output_folders)
+            model.train()
+            if frozen_backbone_bn:
+                for m in model.modules():
+                    if isinstance(m, nn.BatchNorm3d):
+                        m.eval()
+            torch.cuda.empty_cache()
             end = time.time()
 
     total_training_time = time.time() - start_training_time
@@ -148,21 +164,23 @@ def val_in_train(
     iteration,
     distributed,
     mem_active,
+    output_folders,
 ):
     if distributed:
         model_val = model.module
     else:
         model_val = model
-    for dataset_name, data_loader_val in zip(dataset_names_val, data_loaders_val):
+    for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names_val, data_loaders_val):
         eval_res = inference(
             model_val,
             data_loader_val,
             dataset_name,
             mem_active,
+            output_folder=output_folder,
+            iteration=iteration,
         )
         synchronize()
         if tblogger is not None:
             eval_res, _ = eval_res
             total_mAP = eval_res["PascalBoxes_Precision/mAP@0.5IOU"]
             tblogger.add_scalar(dataset_name + "_mAP_0.5IOU", total_mAP, iteration)
-    model.train()

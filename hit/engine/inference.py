@@ -7,7 +7,8 @@ import time
 import torch
 from hit.dataset.datasets.evaluation import evaluate
 from hit.structures.memory_pool import MemoryPool
-from hit.utils.comm import all_gather, gather, get_rank, get_world_size, is_main_process, synchronize
+from hit.utils.comm import (all_gather, gather, get_rank, get_world_size,
+                            is_main_process, synchronize)
 from tqdm import tqdm
 
 
@@ -20,18 +21,20 @@ def compute_on_dataset_1stage(model, data_loader, device):
     else:
         rank = get_rank()
         extra_args = dict(desc="rank {}".format(rank))
-    for batch in tqdm(data_loader, **extra_args):
-        slow_clips, fast_clips, boxes, objects, keypoints, extras, video_ids = batch
-        slow_clips = slow_clips.to(device)
-        fast_clips = fast_clips.to(device)
-        boxes = [box.to(device) for box in boxes]
-        objects = [None if (box is None) else box.to(device) for box in objects]
-        keypoints = [None if (box is None) else box.to(device) for box in keypoints]
+    with torch.no_grad():
+        for batch in tqdm(data_loader, **extra_args):
+            slow_clips, fast_clips, boxes, objects, keypoints, extras, video_ids = batch
+            slow_clips = slow_clips.to(device)
+            if fast_clips is not None:
+                fast_clips = fast_clips.to(device)
+            boxes = [box.to(device) for box in boxes]
+            objects = [None if (box is None) else box.to(device) for box in objects]
+            keypoints = [None if (box is None) else box.to(device) for box in keypoints]
 
-        with torch.no_grad():
+
             output = model(slow_clips, fast_clips, boxes, objects, keypoints, extras)
             output = [o.to(cpu_device) for o in output]
-        results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
+            results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
 
     return results_dict
 
@@ -69,12 +72,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             hand_feature = [ft.to(cpu_device) for ft in feature[2]]
             poses_feature = [ft.to(cpu_device) for ft in feature[3]]
         # store person features into memory pool
-        for j, (
-            movie_id,
-            timestamp,
-            p_ft,
-            o_ft,
-        ) in enumerate(zip(movie_ids, timestamps, person_feature, object_feature)):
+        for movie_id, timestamp, p_ft, o_ft in zip(movie_ids, timestamps, person_feature, object_feature):
             person_feature_pool[movie_id, timestamp] = p_ft
         # store other information in list, for further inference
         batch_info_list[i] = (
@@ -181,6 +179,7 @@ def inference(
     dataset_name,
     mem_active=False,
     output_folder=None,
+    iteration=None,
 ):
     # convert to a torch.device for efficiency
     device = torch.device("cuda")
@@ -205,7 +204,7 @@ def inference(
         return
 
     if output_folder:
-        torch.save(predictions, os.path.join(output_folder, "predictions.pth"))
+        torch.save(predictions, os.path.join(output_folder, "predictions{}.pth".format(str(iteration) if iteration else "")))
 
     return evaluate(
         dataset=dataset,

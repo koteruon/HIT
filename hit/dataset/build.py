@@ -1,9 +1,8 @@
 import bisect
 import copy
 
-import torch.utils.data
-
 import hit.config.paths_catalog as paths_catalog
+import torch.utils.data
 from hit.utils.comm import get_world_size
 from hit.utils.IA_helper import has_object
 
@@ -118,7 +117,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
         videos_per_gpu = videos_per_batch // num_gpus
         shuffle = True
         drop_last = True
-        num_iters = cfg.SOLVER.MAX_ITER
+        num_iters = cfg.SOLVER.MAX_EPOCH*cfg.SOLVER.ITER_PER_EPOCH
     else:
         # for testing
         videos_per_batch = cfg.TEST.VIDEOS_PER_BATCH

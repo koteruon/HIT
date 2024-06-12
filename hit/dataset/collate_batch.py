@@ -39,7 +39,10 @@ class BatchCollator(object):
     def __call__(self, batch):
         transposed_batch = list(zip(*batch))
         slow_clips = batch_different_videos(transposed_batch[0], self.size_divisible)
-        fast_clips = batch_different_videos(transposed_batch[1], self.size_divisible)
+        if transposed_batch[1][0] is not None:
+            fast_clips = batch_different_videos(transposed_batch[1], self.size_divisible)
+        else:
+            fast_clips = None
         boxes = transposed_batch[2]
         # for b in boxes:
         #     b.extra_fields['labels'] = b.extra_fields['labels'][:, :24]

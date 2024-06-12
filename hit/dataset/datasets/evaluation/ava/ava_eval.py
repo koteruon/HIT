@@ -1,10 +1,12 @@
-import numpy as np
-import tempfile
-import os
-from pprint import pformat
 import csv
+import os
+import tempfile
 import time
 from collections import defaultdict
+from pprint import pformat
+
+import numpy as np
+
 from .pascal_evaluation import object_detection_evaluation, standard_fields
 
 
@@ -32,7 +34,7 @@ def do_ava_evaluation(dataset, predictions, output_folder, logger):
 
 def make_image_key(video_id, timestamp):
     """Returns a unique identifier for a video id & timestamp."""
-    return "%s,%04d" % (video_id, int(timestamp))
+    return "%s,%04d" % (video_id, float(timestamp))
 
 
 def decode_image_key(image_key):
@@ -245,3 +247,4 @@ def evaluate_predictions_on_ava(eval_file_paths, ava_results, csv_result_file, l
     metrics = pascal_evaluator.evaluate()
     print_time(logger, "run_evaluator", start)
     return metrics
+

@@ -69,10 +69,21 @@ def train(cfg, local_rank, distributed, tblogger=None, transfer_weight=False, ad
         start_iter=arguments['iteration'],
     )
 
-    checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
-    val_period = cfg.SOLVER.EVAL_PERIOD
+    iter_per_epoch = cfg.SOLVER.ITER_PER_EPOCH # 11524
+    checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD * iter_per_epoch # 1 * 11524
+    val_after = cfg.SOLVER.EVAL_AFTER * iter_per_epoch # 3 * 11524
+    val_period = cfg.SOLVER.EVAL_PERIOD * iter_per_epoch #1 * 11524
 
     mem_active = has_memory(cfg.MODEL.HIT_STRUCTURE)
+    frozen_backbone_bn = ('vit' not in cfg.MODEL.BACKBONE.CONV_BODY.lower()) and cfg.MODEL.BACKBONE.FROZEN_BN
+
+    output_folders = [None] * len(cfg.DATASETS.TEST)
+    dataset_names = cfg.DATASETS.TEST
+    if cfg.OUTPUT_DIR:
+        for idx, dataset_name in enumerate(dataset_names):
+            output_folder = os.path.join(cfg.OUTPUT_DIR, "inference", dataset_name)
+            os.makedirs(output_folder, exist_ok=True)
+            output_folders[idx] = output_folder
 
     # make validation dataloader if necessary
     if not skip_val:
@@ -92,11 +103,14 @@ def train(cfg, local_rank, distributed, tblogger=None, transfer_weight=False, ad
         checkpoint_period,
         arguments,
         tblogger,
+        val_after,
         val_period,
         dataset_names_val,
         data_loaders_val,
         distributed,
         mem_active,
+        frozen_backbone_bn,
+        output_folders
     )
 
     return model
