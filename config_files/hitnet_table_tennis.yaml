@@ -16,10 +16,10 @@ MODEL:
         ACTIVE: True
         CONV3_NONLOCAL: False
         CONV4_NONLOCAL: False
-  NONLOCAL:
-    USE_ZERO_INIT_CONV: False
-    BN_INIT_GAMMA: 0.0
-    FROZEN_BN: True
+    NONLOCAL:
+      USE_ZERO_INIT_CONV: False
+      BN_INIT_GAMMA: 0.0
+      FROZEN_BN: True
   ROI_ACTION_HEAD:
     FEATURE_EXTRACTOR: "2MLPFeatureExtractor"
     POOLER_TYPE: "align3d"

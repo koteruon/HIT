@@ -15,7 +15,7 @@ class ActionDetector(nn.Module):
         if part_forward == 1:
             slow_features = fast_features = None
         else:
-            slow_features, fast_features = self.backbone(slow_video, fast_video)
+            slow_features, fast_features, features = self.backbone(slow_video, fast_video)
 
         result, detector_losses, loss_weight, detector_metrics = self.roi_heads(
             slow_features, fast_features, boxes, objects, keypoints, extras, part_forward

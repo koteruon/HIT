@@ -4,6 +4,7 @@ import time
 
 import torch
 import torch.nn as nn
+
 from hit.engine.inference import inference
 from hit.structures.memory_pool import MemoryPool
 from hit.utils.comm import all_gather, reduce_dict, synchronize

@@ -131,7 +131,7 @@ class ResNLBlock(nn.Module):
             if idx % nonlocal_mod == nonlocal_mod - 1:
                 nl_block_name = "nonlocal_{}".format(idx)
                 nl_module = NLBlock(dim_in, dim_in, int(dim_in / 2),
-                                    cfg.MODEL.NONLOCAL, group=group_nonlocal)
+                                    cfg.MODEL.BACKBONE.NONLOCAL, group=group_nonlocal)
                 self.add_module(nl_block_name, nl_module)
                 self.blocks.append(nl_block_name)
 

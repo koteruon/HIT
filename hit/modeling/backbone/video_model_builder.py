@@ -4,13 +4,15 @@
 """Video models."""
 
 from functools import partial
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint as checkpoint
 
 from .sfmodels import resnet_helper, stem_helper  # noqa
-import torch.utils.checkpoint as checkpoint
-from .vit_utils import PatchEmbed, get_sinusoid_encoding_table, Block, interpolate_pos_embed_online
+from .vit_utils import (Block, PatchEmbed, get_sinusoid_encoding_table,
+                        interpolate_pos_embed_online)
 
 try:
     from fairscale.nn.checkpoint import checkpoint_wrapper
@@ -186,23 +188,23 @@ class SlowFast(nn.Module):
         """
         pool_size = _POOL1['slowfast']
         assert len({len(pool_size), self.num_pathways}) == 1
-        assert cfg.RESNET.DEPTH in _MODEL_STAGE_DEPTH.keys()
+        assert cfg.MODEL.BACKBONE.RESNET.DEPTH in _MODEL_STAGE_DEPTH.keys()
 
-        (d2, d3, d4, d5) = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
+        (d2, d3, d4, d5) = _MODEL_STAGE_DEPTH[cfg.MODEL.BACKBONE.RESNET.DEPTH]
 
-        self.alpha = cfg.SLOWFAST.ALPHA
-        num_groups = cfg.RESNET.NUM_GROUPS
-        width_per_group = cfg.RESNET.WIDTH_PER_GROUP
+        self.alpha = cfg.MODEL.BACKBONE.SLOWFAST.ALPHA
+        num_groups = cfg.MODEL.BACKBONE.RESNET.NUM_GROUPS
+        width_per_group = cfg.MODEL.BACKBONE.RESNET.WIDTH_PER_GROUP
         dim_inner = num_groups * width_per_group
         out_dim_ratio = (
-            cfg.SLOWFAST.BETA_INV // cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO
+            cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV // cfg.MODEL.BACKBONE.SLOWFAST.FUSION_CONV_CHANNEL_RATIO
         )
 
         temp_kernel = _TEMPORAL_KERNEL_BASIS['slowfast']
 
         self.s1 = stem_helper.VideoModelStem(
             dim_in=cfg.DATA.INPUT_CHANNEL_NUM,
-            dim_out=[width_per_group, width_per_group // cfg.SLOWFAST.BETA_INV],
+            dim_out=[width_per_group, width_per_group // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV],
             kernel=[temp_kernel[0][0] + [7, 7], temp_kernel[0][1] + [7, 7]],
             stride=[[1, 2, 2]] * 2,
             padding=[
@@ -212,41 +214,41 @@ class SlowFast(nn.Module):
             norm_module=self.norm_module,
         )
         self.s1_fuse = FuseFastToSlow(
-            width_per_group // cfg.SLOWFAST.BETA_INV,
-            cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
-            cfg.SLOWFAST.FUSION_KERNEL_SZ,
-            cfg.SLOWFAST.ALPHA,
+            width_per_group // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_KERNEL_SZ,
+            cfg.MODEL.BACKBONE.SLOWFAST.ALPHA,
             norm_module=self.norm_module,
         )
 
         self.s2 = resnet_helper.ResStage(
             dim_in=[
                 width_per_group + width_per_group // out_dim_ratio,
-                width_per_group // cfg.SLOWFAST.BETA_INV,
+                width_per_group // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
             dim_out=[
                 width_per_group * 4,
-                width_per_group * 4 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 4 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
-            dim_inner=[dim_inner, dim_inner // cfg.SLOWFAST.BETA_INV],
+            dim_inner=[dim_inner, dim_inner // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV],
             temp_kernel_sizes=temp_kernel[1],
-            stride=cfg.RESNET.SPATIAL_STRIDES[0],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[0],
             num_blocks=[d2] * 2,
             num_groups=[num_groups] * 2,
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[0],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[0],
-            nonlocal_group=cfg.NONLOCAL.GROUP[0],
-            nonlocal_pool=cfg.NONLOCAL.POOL[0],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[0],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[0],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[0],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[0],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[0],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[0],
             norm_module=self.norm_module,
         )
         self.s2_fuse = FuseFastToSlow(
-            width_per_group * 4 // cfg.SLOWFAST.BETA_INV,
-            cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
-            cfg.SLOWFAST.FUSION_KERNEL_SZ,
-            cfg.SLOWFAST.ALPHA,
+            width_per_group * 4 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_KERNEL_SZ,
+            cfg.MODEL.BACKBONE.SLOWFAST.ALPHA,
             norm_module=self.norm_module,
         )
 
@@ -261,92 +263,93 @@ class SlowFast(nn.Module):
         self.s3 = resnet_helper.ResStage(
             dim_in=[
                 width_per_group * 4 + width_per_group * 4 // out_dim_ratio,
-                width_per_group * 4 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 4 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
             dim_out=[
                 width_per_group * 8,
-                width_per_group * 8 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 8 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
-            dim_inner=[dim_inner * 2, dim_inner * 2 // cfg.SLOWFAST.BETA_INV],
+            dim_inner=[dim_inner * 2, dim_inner * 2 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV],
             temp_kernel_sizes=temp_kernel[2],
-            stride=cfg.RESNET.SPATIAL_STRIDES[1],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[1],
             num_blocks=[d3] * 2,
             num_groups=[num_groups] * 2,
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[1],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[1],
-            nonlocal_group=cfg.NONLOCAL.GROUP[1],
-            nonlocal_pool=cfg.NONLOCAL.POOL[1],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[1],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[1],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[1],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[1],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[1],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[1],
             norm_module=self.norm_module,
         )
         self.s3_fuse = FuseFastToSlow(
-            width_per_group * 8 // cfg.SLOWFAST.BETA_INV,
-            cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
-            cfg.SLOWFAST.FUSION_KERNEL_SZ,
-            cfg.SLOWFAST.ALPHA,
+            width_per_group * 8 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_KERNEL_SZ,
+            cfg.MODEL.BACKBONE.SLOWFAST.ALPHA,
             norm_module=self.norm_module,
         )
 
         self.s4 = resnet_helper.ResStage(
             dim_in=[
                 width_per_group * 8 + width_per_group * 8 // out_dim_ratio,
-                width_per_group * 8 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 8 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
             dim_out=[
                 width_per_group * 16,
-                width_per_group * 16 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 16 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
-            dim_inner=[dim_inner * 4, dim_inner * 4 // cfg.SLOWFAST.BETA_INV],
+            dim_inner=[dim_inner * 4, dim_inner * 4 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV],
             temp_kernel_sizes=temp_kernel[3],
-            stride=cfg.RESNET.SPATIAL_STRIDES[2],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[2],
             num_blocks=[d4] * 2,
             num_groups=[num_groups] * 2,
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[2],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[2],
-            nonlocal_group=cfg.NONLOCAL.GROUP[2],
-            nonlocal_pool=cfg.NONLOCAL.POOL[2],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[2],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[2],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[2],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[2],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[2],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[2],
             norm_module=self.norm_module,
         )
         self.s4_fuse = FuseFastToSlow(
-            width_per_group * 16 // cfg.SLOWFAST.BETA_INV,
-            cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
-            cfg.SLOWFAST.FUSION_KERNEL_SZ,
-            cfg.SLOWFAST.ALPHA,
+            width_per_group * 16 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
+            cfg.MODEL.BACKBONE.SLOWFAST.FUSION_KERNEL_SZ,
+            cfg.MODEL.BACKBONE.SLOWFAST.ALPHA,
             norm_module=self.norm_module,
         )
 
         self.s5 = resnet_helper.ResStage(
             dim_in=[
                 width_per_group * 16 + width_per_group * 16 // out_dim_ratio,
-                width_per_group * 16 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 16 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
             dim_out=[
                 width_per_group * 32,
-                width_per_group * 32 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 32 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV,
             ],
-            dim_inner=[dim_inner * 8, dim_inner * 8 // cfg.SLOWFAST.BETA_INV],
+            dim_inner=[dim_inner * 8, dim_inner * 8 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV],
             temp_kernel_sizes=temp_kernel[4],
-            stride=cfg.RESNET.SPATIAL_STRIDES[3],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[3],
             num_blocks=[d5] * 2,
             num_groups=[num_groups] * 2,
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[3],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[3],
-            nonlocal_group=cfg.NONLOCAL.GROUP[3],
-            nonlocal_pool=cfg.NONLOCAL.POOL[3],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[3],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[3],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[3],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[3],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[3],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[3],
             norm_module=self.norm_module,
         )
 
 
-    def forward(self, x):
+    def forward(self, slow_x, fast_x):
         inputs = []
+        x = [slow_x, fast_x]
         x = x[:]  # avoid pass by reference
         x = self.s1(x)
         x = self.s1_fuse(x)
@@ -406,13 +409,13 @@ class ResNet(nn.Module):
         """
         pool_size = _POOL1['slow']
         assert len({len(pool_size), self.num_pathways}) == 1
-        assert cfg.RESNET.DEPTH in _MODEL_STAGE_DEPTH.keys()
+        assert cfg.MODEL.BACKBONE.RESNET.DEPTH in _MODEL_STAGE_DEPTH.keys()
         self.cfg = cfg
 
-        (d2, d3, d4, d5) = _MODEL_STAGE_DEPTH[cfg.RESNET.DEPTH]
+        (d2, d3, d4, d5) = _MODEL_STAGE_DEPTH[cfg.MODEL.BACKBONE.RESNET.DEPTH]
 
-        num_groups = cfg.RESNET.NUM_GROUPS
-        width_per_group = cfg.RESNET.WIDTH_PER_GROUP
+        num_groups = cfg.MODEL.BACKBONE.RESNET.NUM_GROUPS
+        width_per_group = cfg.MODEL.BACKBONE.RESNET.WIDTH_PER_GROUP
         dim_inner = num_groups * width_per_group
 
         temp_kernel = _TEMPORAL_KERNEL_BASIS['slow']
@@ -431,18 +434,18 @@ class ResNet(nn.Module):
             dim_out=[width_per_group * 4],
             dim_inner=[dim_inner],
             temp_kernel_sizes=temp_kernel[1],
-            stride=cfg.RESNET.SPATIAL_STRIDES[0],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[0],
             num_blocks=[d2],
             num_groups=[num_groups],
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[0],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[0],
-            nonlocal_group=cfg.NONLOCAL.GROUP[0],
-            nonlocal_pool=cfg.NONLOCAL.POOL[0],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            stride_1x1=cfg.RESNET.STRIDE_1X1,
-            inplace_relu=cfg.RESNET.INPLACE_RELU,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[0],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[0],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[0],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[0],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[0],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            stride_1x1=cfg.MODEL.BACKBONE.RESNET.STRIDE_1X1,
+            inplace_relu=cfg.MODEL.BACKBONE.RESNET.INPLACE_RELU,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[0],
             norm_module=self.norm_module,
         )
 
@@ -460,18 +463,18 @@ class ResNet(nn.Module):
             dim_out=[width_per_group * 8],
             dim_inner=[dim_inner * 2],
             temp_kernel_sizes=temp_kernel[2],
-            stride=cfg.RESNET.SPATIAL_STRIDES[1],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[1],
             num_blocks=[d3],
             num_groups=[num_groups],
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[1],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[1],
-            nonlocal_group=cfg.NONLOCAL.GROUP[1],
-            nonlocal_pool=cfg.NONLOCAL.POOL[1],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            stride_1x1=cfg.RESNET.STRIDE_1X1,
-            inplace_relu=cfg.RESNET.INPLACE_RELU,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[1],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[1],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[1],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[1],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[1],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            stride_1x1=cfg.MODEL.BACKBONE.RESNET.STRIDE_1X1,
+            inplace_relu=cfg.MODEL.BACKBONE.RESNET.INPLACE_RELU,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[1],
             norm_module=self.norm_module,
         )
 
@@ -480,18 +483,18 @@ class ResNet(nn.Module):
             dim_out=[width_per_group * 16],
             dim_inner=[dim_inner * 4],
             temp_kernel_sizes=temp_kernel[3],
-            stride=cfg.RESNET.SPATIAL_STRIDES[2],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[2],
             num_blocks=[d4],
             num_groups=[num_groups],
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[2],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[2],
-            nonlocal_group=cfg.NONLOCAL.GROUP[2],
-            nonlocal_pool=cfg.NONLOCAL.POOL[2],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            stride_1x1=cfg.RESNET.STRIDE_1X1,
-            inplace_relu=cfg.RESNET.INPLACE_RELU,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[2],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[2],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[2],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[2],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[2],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            stride_1x1=cfg.MODEL.BACKBONE.RESNET.STRIDE_1X1,
+            inplace_relu=cfg.MODEL.BACKBONE.RESNET.INPLACE_RELU,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[2],
             norm_module=self.norm_module,
         )
 
@@ -500,18 +503,18 @@ class ResNet(nn.Module):
             dim_out=[width_per_group * 32],
             dim_inner=[dim_inner * 8],
             temp_kernel_sizes=temp_kernel[4],
-            stride=cfg.RESNET.SPATIAL_STRIDES[3],
+            stride=cfg.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES[3],
             num_blocks=[d5],
             num_groups=[num_groups],
-            num_block_temp_kernel=cfg.RESNET.NUM_BLOCK_TEMP_KERNEL[3],
-            nonlocal_inds=cfg.NONLOCAL.LOCATION[3],
-            nonlocal_group=cfg.NONLOCAL.GROUP[3],
-            nonlocal_pool=cfg.NONLOCAL.POOL[3],
-            instantiation=cfg.NONLOCAL.INSTANTIATION,
-            trans_func_name=cfg.RESNET.TRANS_FUNC,
-            stride_1x1=cfg.RESNET.STRIDE_1X1,
-            inplace_relu=cfg.RESNET.INPLACE_RELU,
-            dilation=cfg.RESNET.SPATIAL_DILATIONS[3],
+            num_block_temp_kernel=cfg.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL[3],
+            nonlocal_inds=cfg.MODEL.BACKBONE.NONLOCAL.LOCATION[3],
+            nonlocal_group=cfg.MODEL.BACKBONE.NONLOCAL.GROUP[3],
+            nonlocal_pool=cfg.MODEL.BACKBONE.NONLOCAL.POOL[3],
+            instantiation=cfg.MODEL.BACKBONE.NONLOCAL.INSTANTIATION,
+            trans_func_name=cfg.MODEL.BACKBONE.RESNET.TRANS_FUNC,
+            stride_1x1=cfg.MODEL.BACKBONE.RESNET.STRIDE_1X1,
+            inplace_relu=cfg.MODEL.BACKBONE.RESNET.INPLACE_RELU,
+            dilation=cfg.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS[3],
             norm_module=self.norm_module,
         )
 
@@ -551,22 +554,22 @@ class ViT(nn.Module):
         """
 
         # default cfg for vit-base
-        tubelet_size = cfg.ViT.TUBELET_SIZE
-        patch_size = cfg.ViT.PATCH_SIZE
-        in_chans = cfg.ViT.IN_CHANS
-        embed_dim = cfg.ViT.EMBED_DIM
-        pretrain_img_size = cfg.ViT.PRETRAIN_IMG_SIZE
-        use_learnable_pos_emb = cfg.ViT.USE_LEARNABLE_POS_EMB
-        drop_rate = cfg.ViT.DROP_RATE
-        attn_drop_rate = cfg.ViT.ATTN_DROP_RATE
-        drop_path_rate = cfg.ViT.DROP_PATH_RATE
-        depth = cfg.ViT.DEPTH
-        num_heads = cfg.ViT.NUM_HEADS
-        mlp_ratio = cfg.ViT.MLP_RATIO
-        qkv_bias = cfg.ViT.QKV_BIAS
-        qk_scale = cfg.ViT.QK_SCALE
-        init_values = cfg.ViT.INIT_VALUES
-        use_checkpoint = cfg.ViT.USE_CHECKPOINT
+        tubelet_size = cfg.MODEL.BACKBONE.ViT.TUBELET_SIZE
+        patch_size = cfg.MODEL.BACKBONE.ViT.PATCH_SIZE
+        in_chans = cfg.MODEL.BACKBONE.ViT.IN_CHANS
+        embed_dim = cfg.MODEL.BACKBONE.ViT.EMBED_DIM
+        pretrain_img_size = cfg.MODEL.BACKBONE.ViT.PRETRAIN_IMG_SIZE
+        use_learnable_pos_emb = cfg.MODEL.BACKBONE.ViT.USE_LEARNABLE_POS_EMB
+        drop_rate = cfg.MODEL.BACKBONE.ViT.DROP_RATE
+        attn_drop_rate = cfg.MODEL.BACKBONE.ViT.ATTN_DROP_RATE
+        drop_path_rate = cfg.MODEL.BACKBONE.ViT.DROP_PATH_RATE
+        depth = cfg.MODEL.BACKBONE.ViT.DEPTH
+        num_heads = cfg.MODEL.BACKBONE.ViT.NUM_HEADS
+        mlp_ratio = cfg.MODEL.BACKBONE.ViT.MLP_RATIO
+        qkv_bias = cfg.MODEL.BACKBONE.ViT.QKV_BIAS
+        qk_scale = cfg.MODEL.BACKBONE.ViT.QK_SCALE
+        init_values = cfg.MODEL.BACKBONE.ViT.INIT_VALUES
+        use_checkpoint = cfg.MODEL.BACKBONE.ViT.USE_CHECKPOINT
         norm_layer = partial(nn.LayerNorm, eps=1e-6)
 
         self.depth = depth  # 12
@@ -597,9 +600,9 @@ class ViT(nn.Module):
         self.norm = norm_layer(embed_dim)
 
 
-    def forward(self, x_list):
+    def forward(self, slow_x, fast_x):
 
-        x = x_list[0]
+        x = slow_x
         # print(x.shape) b, 3, 16, 244, 244
         x = self.patch_embed(x)  # x.shape=[b 768 8 14 14]
         ws = x.shape[2:]  # t,h,w
