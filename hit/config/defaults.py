@@ -332,6 +332,9 @@ _C.SOLVER.CHECKPOINT_PERIOD = 1
 _C.SOLVER.EVAL_PERIOD = 1
 _C.SOLVER.EVAL_AFTER = 2
 
+_C.SOLVER.DAMPENING = 0
+_C.SOLVER.NESTEROV = False
+
 # Number of video clips per batch
 # This is global, so if we have 8 GPUs and VIDEOS_PER_BATCH = 16, each GPU will
 # see 2 clips per batch
