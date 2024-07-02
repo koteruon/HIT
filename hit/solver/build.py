@@ -11,16 +11,14 @@ from .lr_scheduler import HalfPeriodCosStepLR, WarmupMultiStepLR
 def get_num_layer_for_vit(var_name, num_max_layer):
     if var_name in ("cls_token", "mask_token", "pos_embed"):
         return 0
-    elif var_name.startswith("patch_embed") or var_name.startswith(
-            "encoder.patch_embed"):
+    elif var_name.startswith("patch_embed") or var_name.startswith("encoder.patch_embed"):
         return 0
     elif var_name.startswith("rel_pos_bias"):
         return num_max_layer - 1
-    elif var_name.startswith("blocks") or var_name.startswith(
-            "encoder.blocks"):
+    elif var_name.startswith("blocks") or var_name.startswith("encoder.blocks"):
         if var_name.startswith("encoder.blocks"):
             var_name = var_name[8:]
-        layer_id = int(var_name.split('.')[1])
+        layer_id = int(var_name.split(".")[1])
         return layer_id + 1
     else:
         return num_max_layer - 1
@@ -38,12 +36,9 @@ class LayerDecayValueAssigner(object):
         return get_num_layer_for_vit(var_name, len(self.values))
 
 
-def get_parameter_groups(model,
-                         weight_decay=1e-5,
-                         skip_list=(),
-                         get_num_layer=None,
-                         get_layer_scale=None,
-                         lr_scale=1.0):
+def get_parameter_groups(
+    model, weight_decay=1e-5, skip_list=(), get_num_layer=None, get_layer_scale=None, lr_scale=1.0
+):
     parameter_group_names = {}
     parameter_group_vars = {}
 
@@ -52,17 +47,15 @@ def get_parameter_groups(model,
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue  # frozen weights
-        if (len(param.shape) == 1 or name.endswith(".bias")
-                or name in skip_list) and name.startswith('encoder.'):
+        if (len(param.shape) == 1 or name.endswith(".bias") or name in skip_list) and name.startswith("encoder."):
             group_name = "no_decay_encoder"
-            this_weight_decay = 0.
+            this_weight_decay = 0.0
             scale = 1.0
-        elif len(param.shape) == 1 or name.endswith(
-                ".bias") or name in skip_list:
+        elif len(param.shape) == 1 or name.endswith(".bias") or name in skip_list:
             group_name = "no_decay_others"
-            this_weight_decay = 0.
+            this_weight_decay = 0.0
             scale = lr_scale
-        elif name.startswith('encoder.'):
+        elif name.startswith("encoder."):
             group_name = "decay_encoder"
             this_weight_decay = weight_decay
             scale = 1.0
@@ -81,16 +74,8 @@ def get_parameter_groups(model,
             if get_layer_scale is not None:
                 scale = get_layer_scale(layer_id) * scale
 
-            parameter_group_names[group_name] = {
-                "weight_decay": this_weight_decay,
-                "params": [],
-                "lr_scale": scale
-            }
-            parameter_group_vars[group_name] = {
-                "weight_decay": this_weight_decay,
-                "params": [],
-                "lr_scale": scale
-            }
+            parameter_group_names[group_name] = {"weight_decay": this_weight_decay, "params": [], "lr_scale": scale}
+            parameter_group_vars[group_name] = {"weight_decay": this_weight_decay, "params": [], "lr_scale": scale}
 
         parameter_group_vars[group_name]["params"].append(param)
         parameter_group_names[group_name]["params"].append(name)
@@ -112,12 +97,15 @@ def make_optimizer(cfg, model):
         cfg (config): configs of hyper-parameters of SGD or ADAM, includes base
         learning rate,  momentum, weight_decay, dampening, and etc.
     """
-    if 'vit' in cfg.MODEL.BACKBONE.CONV_BODY.lower():
+    if "vit" in cfg.MODEL.BACKBONE.CONV_BODY.lower():
         layer_decay = cfg.MODEL.BACKBONE.ViT.LAYER_DECAY < 1.0
         if layer_decay:
             assigner = LayerDecayValueAssigner(
-                list(cfg.MODEL.BACKBONE.ViT.LAYER_DECAY ** (cfg.MODEL.BACKBONE.ViT.DEPTH + 1 - i)
-                     for i in range(cfg.MODEL.BACKBONE.ViT.DEPTH + 2)))
+                list(
+                    cfg.MODEL.BACKBONE.ViT.LAYER_DECAY ** (cfg.MODEL.BACKBONE.ViT.DEPTH + 1 - i)
+                    for i in range(cfg.MODEL.BACKBONE.ViT.DEPTH + 2)
+                )
+            )
         else:
             assigner = None
 
@@ -127,13 +115,13 @@ def make_optimizer(cfg, model):
         skip_weight_decay_list = set(cfg.MODEL.BACKBONE.ViT.NO_WEIGHT_DECAY)
         print("Skip weight decay list: ", skip_weight_decay_list)
         weight_decay = cfg.MODEL.BACKBONE.ViT.WEIGHT_DECAY
-        backbone_parameters = get_parameter_groups(model.backbone,
-                                          weight_decay,
-                                          skip_weight_decay_list,
-                                          get_num_layer=assigner.get_layer_id
-                                          if assigner is not None else None,
-                                          get_layer_scale=assigner.get_scale
-                                          if assigner is not None else None)
+        backbone_parameters = get_parameter_groups(
+            model.backbone,
+            weight_decay,
+            skip_weight_decay_list,
+            get_num_layer=assigner.get_layer_id if assigner is not None else None,
+            get_layer_scale=assigner.get_scale if assigner is not None else None,
+        )
 
         non_bn_parameters = []
         hit_parameters = []
@@ -147,20 +135,21 @@ def make_optimizer(cfg, model):
 
         optim_params = []
         optim_params = backbone_parameters.copy()
-        optim_params.append({
+        optim_params.append(
+            {
                 "params": hit_parameters,
                 "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
-                "lr": cfg.SOLVER.BASE_LR * cfg.SOLVER.IA_LR_FACTOR
-            })
-        optim_params.append({
-                "params": non_bn_parameters,
-                "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
-                "lr": cfg.SOLVER.BASE_LR
-            })
+                "lr": cfg.SOLVER.BASE_LR * cfg.SOLVER.IA_LR_FACTOR,
+            }
+        )
+        optim_params.append(
+            {"params": non_bn_parameters, "weight_decay": cfg.SOLVER.WEIGHT_DECAY, "lr": cfg.SOLVER.BASE_LR}
+        )
 
         # Check all parameters will be passed into optimizer.
-        assert len(list(model.parameters())) == sum(len(p["params"]) for p in backbone_parameters) + len(hit_parameters) + len(non_bn_parameters) , \
-            "parameter size does not match: {} + {} + {} != {}".format(
+        assert len(list(model.parameters())) == sum(len(p["params"]) for p in backbone_parameters) + len(
+            hit_parameters
+        ) + len(non_bn_parameters), "parameter size does not match: {} + {} + {} != {}".format(
             sum(len(p["params"]) for p in backbone_parameters),
             len(hit_parameters),
             len(non_bn_parameters),
@@ -185,7 +174,7 @@ def make_optimizer(cfg, model):
                 if isinstance(m, nn.BatchNorm3d):
                     m.eval()
         for name, p in model.named_parameters():
-            if ("backbone" in name) and ('bn' in name):
+            if ("backbone" in name) and ("bn" in name):
                 bn_parameters.append(p)
             elif "hit_structure" in name:
                 hit_parameters.append(p)
@@ -193,25 +182,26 @@ def make_optimizer(cfg, model):
                 non_bn_parameters.append(p)
 
         optim_params = []
-        optim_params.append({
-                "params": bn_parameters,
-                "weight_decay": cfg.SOLVER.WEIGHT_DECAY_BN,
-                "lr": cfg.SOLVER.BASE_LR
-            })
-        optim_params.append({
+        optim_params.append(
+            {"params": bn_parameters, "weight_decay": cfg.SOLVER.WEIGHT_DECAY_BN, "lr": cfg.SOLVER.BASE_LR}
+        )
+        optim_params.append(
+            {
                 "params": hit_parameters,
                 "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
-                "lr": cfg.SOLVER.BASE_LR * cfg.SOLVER.IA_LR_FACTOR
-            })
-        optim_params.append({
-                "params": non_bn_parameters,
-                "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
-                "lr": cfg.SOLVER.BASE_LR
-            })
+                "lr": cfg.SOLVER.BASE_LR * cfg.SOLVER.IA_LR_FACTOR,
+            }
+        )
+        # optim_params.append({
+        #         "params": non_bn_parameters,
+        #         "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
+        #         "lr": cfg.SOLVER.BASE_LR
+        #     })
 
         # Check all parameters will be passed into optimizer.
-        assert len(list(model.parameters())) == len(bn_parameters) + len(hit_parameters) + len(non_bn_parameters) , \
-            "parameter size does not match: {} + {} + {} != {}".format(
+        assert len(list(model.parameters())) == len(bn_parameters) + len(hit_parameters) + len(
+            non_bn_parameters
+        ), "parameter size does not match: {} + {} + {} != {}".format(
             len(bn_parameters),
             len(hit_parameters),
             len(non_bn_parameters),
@@ -224,7 +214,6 @@ def make_optimizer(cfg, model):
                 len(non_bn_parameters),
             )
         )
-
 
     if cfg.SOLVER.OPTIMIZING_METHOD == "sgd":
         optimizer = torch.optim.SGD(
@@ -250,9 +239,7 @@ def make_optimizer(cfg, model):
             weight_decay=cfg.SOLVER.WEIGHT_DECAY,
         )
     else:
-        raise NotImplementedError(
-            "Does not support {} optimizer".format(cfg.SOLVER.OPTIMIZING_METHOD)
-        )
+        raise NotImplementedError("Does not support {} optimizer".format(cfg.SOLVER.OPTIMIZING_METHOD))
 
     return optimizer
 
@@ -261,10 +248,10 @@ def make_lr_scheduler(cfg, optimizer):
     scheduler = cfg.SOLVER.SCHEDULER
     iter_per_epoch = cfg.SOLVER.ITER_PER_EPOCH
     if scheduler not in ("half_period_cosine", "warmup_multi_step"):
-        raise ValueError('Scheduler not available')
-    if scheduler == 'warmup_multi_step':
-        steps = tuple(step*iter_per_epoch for step in cfg.SOLVER.STEPS)
-        warmup_iters = cfg.SOLVER.WARMUP_EPOCH*iter_per_epoch
+        raise ValueError("Scheduler not available")
+    if scheduler == "warmup_multi_step":
+        steps = tuple(step * iter_per_epoch for step in cfg.SOLVER.STEPS)
+        warmup_iters = cfg.SOLVER.WARMUP_EPOCH * iter_per_epoch
         return WarmupMultiStepLR(
             optimizer,
             steps,
@@ -273,9 +260,9 @@ def make_lr_scheduler(cfg, optimizer):
             warmup_iters=warmup_iters if cfg.SOLVER.WARMUP_ON else 0,
             warmup_method=cfg.SOLVER.WARMUP_METHOD,
         )
-    elif scheduler == 'half_period_cosine':
-        max_iters = iter_per_epoch*cfg.SOLVER.MAX_EPOCH
-        warmup_iters = cfg.SOLVER.WARMUP_EPOCH*iter_per_epoch
+    elif scheduler == "half_period_cosine":
+        max_iters = iter_per_epoch * cfg.SOLVER.MAX_EPOCH
+        warmup_iters = cfg.SOLVER.WARMUP_EPOCH * iter_per_epoch
         return HalfPeriodCosStepLR(
             optimizer,
             warmup_factor=cfg.SOLVER.WARMUP_FACTOR,
