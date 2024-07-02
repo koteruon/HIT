@@ -1,8 +1,9 @@
 import bisect
 import copy
 
-import hit.config.paths_catalog as paths_catalog
 import torch.utils.data
+
+import hit.config.paths_catalog as paths_catalog
 from hit.utils.comm import get_world_size
 from hit.utils.IA_helper import has_object
 
@@ -117,7 +118,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
         videos_per_gpu = videos_per_batch // num_gpus
         shuffle = True
         drop_last = True
-        num_iters = cfg.SOLVER.MAX_EPOCH*cfg.SOLVER.ITER_PER_EPOCH
+        num_iters = cfg.SOLVER.MAX_EPOCH * cfg.SOLVER.ITER_PER_EPOCH
     else:
         # for testing
         videos_per_batch = cfg.TEST.VIDEOS_PER_BATCH
@@ -148,6 +149,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0):
     # build sampler and dataloader
     data_loaders = []
     for dataset in datasets:
+        print(f"====================dataset size:{len(dataset)}======================")
         sampler = make_data_sampler(dataset, shuffle, is_distributed)
         batch_sampler = make_batch_data_sampler(
             dataset, sampler, aspect_grouping, videos_per_gpu, num_iters, start_iter, drop_last
