@@ -45,3 +45,6 @@ requirements.txt
 /tools
 /timm
 
+detector/yolov8/weights
+detector/yolov8/runs
+detector/yolov8/datasets
