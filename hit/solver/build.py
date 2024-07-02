@@ -182,21 +182,18 @@ def make_optimizer(cfg, model):
                 non_bn_parameters.append(p)
 
         optim_params = []
-        optim_params.append(
-            {"params": bn_parameters, "weight_decay": cfg.SOLVER.WEIGHT_DECAY_BN, "lr": cfg.SOLVER.BASE_LR}
-        )
-        optim_params.append(
-            {
-                "params": hit_parameters,
-                "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
-                "lr": cfg.SOLVER.BASE_LR * cfg.SOLVER.IA_LR_FACTOR,
-            }
-        )
-        # optim_params.append({
-        #         "params": non_bn_parameters,
-        #         "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
-        #         "lr": cfg.SOLVER.BASE_LR
-        #     })
+        for param in bn_parameters:
+            optim_params.append({"params": param, "weight_decay": cfg.SOLVER.WEIGHT_DECAY_BN, "lr": cfg.SOLVER.BASE_LR})
+        for param in hit_parameters:
+            optim_params.append(
+                {
+                    "params": param,
+                    "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
+                    "lr": cfg.SOLVER.BASE_LR * cfg.SOLVER.IA_LR_FACTOR,
+                }
+            )
+        # for param in non_bn_parameters:
+        #     optim_params.append({"params": param, "weight_decay": cfg.SOLVER.WEIGHT_DECAY, "lr": cfg.SOLVER.BASE_LR})
 
         # Check all parameters will be passed into optimizer.
         assert len(list(model.parameters())) == len(bn_parameters) + len(hit_parameters) + len(

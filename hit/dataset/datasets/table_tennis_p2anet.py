@@ -186,23 +186,23 @@ class DatasetEngine(data.Dataset):
             self.det_objects = None
 
         # keypoints_file
-        # if is_train:
-        #     yolov7_pose_command = f"cd ../yolov7; {sys.executable} keypoints_detection.py --train"
-        # else:
-        #     yolov7_pose_command = f"cd ../yolov7; {sys.executable} keypoints_detection.py"
-        # p = subprocess.Popen(yolov7_pose_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        # while True:
-        #     ready_to_read, _, _ = select.select([p.stdout, p.stderr], [], [])
-        #     for pipe in ready_to_read:
-        #         output = pipe.read(1)
-        #         if output:
-        #             sys.stdout.write(output)
-        #             sys.stdout.flush()
-        #     if p.poll() is not None:
-        #         break
-        # out, err = p.communicate()
-        # if p.returncode != 0:
-        #     raise Exception("Message from keypoints_detection error!:{}".format(err))
+        if is_train:
+            yolov7_pose_command = f"cd ../yolov7; {sys.executable} keypoints_detection.py --train"
+        else:
+            yolov7_pose_command = f"cd ../yolov7; {sys.executable} keypoints_detection.py"
+        p = subprocess.Popen(yolov7_pose_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        while True:
+            ready_to_read, _, _ = select.select([p.stdout, p.stderr], [], [])
+            for pipe in ready_to_read:
+                output = pipe.read(1)
+                if output:
+                    sys.stdout.write(output)
+                    sys.stdout.flush()
+            if p.poll() is not None:
+                break
+        out, err = p.communicate()
+        if p.returncode != 0:
+            raise Exception("Message from keypoints_detection error!:{}".format(err))
 
         if keypoints_file:
             self.keypoint_box_results = self.load_box_file(keypoints_file)  ## xyxy
