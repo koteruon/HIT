@@ -179,6 +179,7 @@ class MDCSV:
                 time_stamp = 0
                 # 是否正在紀錄動作中
                 is_recording = False
+                recode_frame_stamp = 0
                 action_1 = 0
                 action_2 = 0
 
@@ -203,7 +204,6 @@ class MDCSV:
             # 按下按鍵
             break_flag = False
             entity_one_is_zero = False
-            recode_frame_stamp = 0
             while True:
                 key = cv2.waitKey(0) & 0xFF
                 # 0代表null
@@ -220,6 +220,7 @@ class MDCSV:
                             entity_one_is_zero = False
                         else:
                             is_recording = True
+                            recode_frame_stamp = frame_stamp
                         self.show_frame(frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2)
                 # 按下1234
                 if key == ord("1") or key == ord("2") or key == ord("3") or key == ord("4"):
