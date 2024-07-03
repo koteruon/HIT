@@ -55,6 +55,8 @@ class Yolo72coco:
         self.flag = False
 
         if is_train:
+            # self.action_label_interval = 15
+            self.action_label_interval = 0
             self.action_label_path = r"data/table_tennis/annotations/action_timestamp.csv"
             self.output_csv = r"data/table_tennis/annotations/table_tennis_train.csv"
             self.root_txt_path = r"data/table_tennis/train/"
@@ -148,7 +150,7 @@ class Yolo72coco:
                                 entity_id = 2  ## right player
 
                             ## 取stamp
-                            if stamp_item - 15 <= txt_idx < stamp_item + 15:
+                            if stamp_item - self.action_label_interval <= txt_idx < stamp_item + self.action_label_interval:
                                 stamp_df = local_df.loc[local_df["frame_stamp"] == stamp_item]
                                 if stamp_df.values.size > 0:
                                     items = stamp_df.loc[stamp_df["entity_id"] == entity_id].values.flatten().tolist()
@@ -169,7 +171,7 @@ class Yolo72coco:
                             if score >= 0.5:
                                 self.object_list.append(dict_item)
 
-                    if txt_idx >= stamp_item + 15:
+                    if txt_idx >= stamp_item + self.action_label_interval:
                         time_stamp = time_stamp[1:]
             else:
                 for txt_idx, txt_file in enumerate(txt_list):
