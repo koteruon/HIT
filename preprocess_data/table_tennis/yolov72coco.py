@@ -38,7 +38,7 @@ class Yolo72coco:
         self.HEIGHT = 1080
         self.WIDTH = 1920
 
-        self.new_width = 960
+        self.new_width = 640
         self.new_height = int(round(self.new_width * self.HEIGHT / self.WIDTH / 2) * 2)
         self.ava_dict = {
             "video_id": [],
