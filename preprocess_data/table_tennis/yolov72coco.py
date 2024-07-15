@@ -55,8 +55,7 @@ class Yolo72coco:
         self.flag = False
 
         if is_train:
-            # self.action_label_interval = 15
-            self.action_label_interval = 0
+            self.action_label_interval = 15
             self.action_label_path = r"data/table_tennis/annotations/action_timestamp.csv"
             self.output_csv = r"data/table_tennis/annotations/table_tennis_train.csv"
             self.root_txt_path = r"data/table_tennis/train/"

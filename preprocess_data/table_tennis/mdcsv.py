@@ -17,7 +17,7 @@ class MDCSV:
 
     def __init__(self) -> None:
         self.csv_path = r"data/table_tennis/annotations/action_timestamp_tmp.csv"
-        self.movie_root = r"data/table_tennis/videos/train"
+        self.movie_root = r"data/table_tennis/videos/test"
         self.columns = ["video_id", "time_stamp", "action_id", "entity_id", "frame_stamp"]
         self.movie_path_list = []
         self.step = 1
@@ -114,24 +114,16 @@ class MDCSV:
         frame_s = cv2.resize(frame_clone, (width // 2, hight // 2))
         cv2.imshow("Frame", frame_s)
 
-    def mark_action_timestamps(self, video_id, time_stamp, action_1, action_2, frame_stamp_start, frame_stamp_end):
-        # time_stamp
-        time_stamp_series = self.csv_df[(self.csv_df["video_id"] == video_id) & (self.csv_df["frame_stamp"] == frame_stamp_start)]["time_stamp"]
-        if not time_stamp_series.empty:
-            time_stamp = time_stamp_series.iloc[0]
-
+    def mark_action_timestamps(self, video_id, action_1, action_2, frame_stamp_start, frame_stamp_end):
         if action_1 == 0 and action_2 == 0:
-            return time_stamp
+            return
 
         for frame_stamp in range(frame_stamp_start, frame_stamp_end + 1):
-            # 如果timestamp比原本的還早，就移動整個時間軸
-            self.csv_df.loc[(self.csv_df["video_id"] == video_id) & (self.csv_df["time_stamp"] >= time_stamp), "time_stamp"] += 1
-
             # 如果已經有紀錄了，就直接修改動作值，沒有紀錄則增加一行
             if action_1 != 0:
                 new_data = {
                     "video_id": video_id,
-                    "time_stamp": time_stamp,
+                    "time_stamp": -1,
                     "action_id": action_1,
                     "entity_id": 1,
                     "frame_stamp": frame_stamp,
@@ -147,7 +139,7 @@ class MDCSV:
             if action_2 != 0:
                 new_data = {
                     "video_id": video_id,
-                    "time_stamp": time_stamp,
+                    "time_stamp": -1,
                     "action_id": action_2,
                     "entity_id": 2,
                     "frame_stamp": frame_stamp,
@@ -160,10 +152,7 @@ class MDCSV:
                 else:
                     self.csv_df = self.csv_df.append(new_data, ignore_index=True)
 
-            self.csv_df = self.csv_df.sort_values(by=["video_id", "time_stamp", "entity_id"])
-            time_stamp += 1
-
-        return time_stamp
+        self.csv_df = self.csv_df.sort_values(by=["video_id", "frame_stamp", "entity_id"])
 
     def mark_action(self):
         movie_names_idx = 0
@@ -176,7 +165,6 @@ class MDCSV:
                 cap = cv2.VideoCapture(movie_path)
                 total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
                 read_video_capture_flag = False
-                time_stamp = 0
                 # 是否正在紀錄動作中
                 is_recording = False
                 recode_frame_stamp = 0
@@ -250,7 +238,7 @@ class MDCSV:
                         self.show_frame(frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2)
                 # 空白見結束record
                 if key == ord(" ") and is_recording:
-                    time_stamp = self.mark_action_timestamps(video_id, time_stamp, action_1, action_2, recode_frame_stamp, frame_stamp)
+                    self.mark_action_timestamps(video_id, action_1, action_2, recode_frame_stamp, frame_stamp)
                     action_1 = 0
                     action_2 = 0
                     is_recording = False
@@ -290,7 +278,21 @@ class MDCSV:
             if break_flag:
                 break
 
+    def count_timestamps(self):
+        self.csv_df = self.csv_df.sort_values(by=["video_id", "frame_stamp", "entity_id"])
+        prev_video_id = None
+        current_time_stamp = 0
+        for index, row in self.csv_df.iterrows():
+            if prev_video_id != row["video_id"]:
+                current_time_stamp = 0
+            else:
+                if index > 0 and row["frame_stamp"] != self.csv_df.loc[index - 1, "frame_stamp"]:
+                    current_time_stamp += 1
+
+            self.csv_df.at[index, "time_stamp"] = current_time_stamp
+            prev_video_id = row["video_id"]
     def dump(self):
+        self.count_timestamps()
         self.csv_df.to_csv(self.csv_path, encoding="utf8", index=False, header=True)
 
 

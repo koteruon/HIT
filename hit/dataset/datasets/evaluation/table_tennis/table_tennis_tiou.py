@@ -1,8 +1,9 @@
+import numpy as np
 import pandas as pd
 
 
 def calculate_tiou(frame_range1, frame_range2):
-    intersection = max(0, min(frame_range1[1], frame_range2[1]) - max(frame_range1[0], frame_range2[0]))
+    intersection = max(0, min(frame_range1[1], frame_range2[1]) - max(frame_range1[0], frame_range2[0]) + 1)
     union = max(frame_range1[1], frame_range2[1]) - min(frame_range1[0], frame_range2[0])
     return intersection / union if union > 0 else 0
 
@@ -30,9 +31,7 @@ def only_server_and_stroke(segments):
             only_server_and_stroke_segments.append(segment)
     return only_server_and_stroke_segments
 
-def get_prediction_action_segments(df):
-    image_width = 640
-    act_th = 0.5
+def get_prediction_action_segments(df, image_width = 640, act_th = 0.5):
     df['center_x'] = (df['x1'] + df['x2']) / 2
     df['entity_id'] = df['center_x'].apply(lambda x: 1 if x < image_width / 2 else 2)
 
@@ -60,7 +59,7 @@ def calculate_metrics(ground_truth_segments, prediction_segments, tiou_threshold
         else:
             FN += 1
 
-    FP = len(prediction_segments) - TP
+    FP = max(0, len(prediction_segments) - TP)
 
     accuracy = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else 0
     precision = TP / (TP + FP) if (TP + FP) > 0 else 0
@@ -70,24 +69,34 @@ def calculate_metrics(ground_truth_segments, prediction_segments, tiou_threshold
     return accuracy, precision, recall, f1
 
 # 讀取 CSV 文件
-def calculate_action_metrics():
+def calculate_action_metrics(logger = None):
     columns = ["video_id", "time_stamp", "action_id", "entity_id", "frame_stamp"]
     ground_truth_df = pd.read_csv('data/table_tennis/annotations/action_timestamp_test.csv')
     prediction_df = pd.read_csv('data/output/hitnet/model_R50_M32_FPS30_4classes/inference/table_tennis_test/result_table_tennis.csv')
 
     # 獲取動作片段
-    ground_truth_list, ground_truth_segments = get_action_segments(ground_truth_df)
-    prediction_list, prediction_segments = get_prediction_action_segments(prediction_df)
-    ground_truth_segments.to_csv("gt.csv")
-    prediction_segments.to_csv("pred.csv")
+    for act_th in np.arange(0.35, 0.75, 0.01):
+    # for act_th in np.arange(0.55, 0.56, 0.01):
+        ground_truth_list, ground_truth_segments = get_action_segments(ground_truth_df)
+        prediction_list, prediction_segments = get_prediction_action_segments(prediction_df, act_th = act_th)
+        ground_truth_segments.to_csv("gt.csv")
+        prediction_segments.to_csv("pred.csv")
 
-    # 計算指標
-    accuracy, precision, recall, f1 = calculate_metrics(ground_truth_segments, prediction_segments, tiou_threshold=0.00001)
+        # 計算指標
+        accuracy, precision, recall, f1 = calculate_metrics(ground_truth_segments, prediction_segments, tiou_threshold=0.00001)
 
-    print(f'Accuracy: {accuracy:.2f}')
-    print(f'Precision: {precision:.2f}')
-    print(f'Recall: {recall:.2f}')
-    print(f'F1-Measure: {f1:.2f}')
+        print(f"-------------act_th: {act_th:.2f}--------------")
+        print(f'Accuracy: {accuracy:.2f}')
+        print(f'Precision: {precision:.2f}')
+        print(f'Recall: {recall:.2f}')
+        print(f'F1-Measure: {f1:.2f}')
+
+        if logger:
+            logger.info(f"-------------act_th: {act_th:.2f}--------------")
+            logger.info(f'Accuracy: {accuracy:.2f}')
+            logger.info(f'Precision: {precision:.2f}')
+            logger.info(f'Recall: {recall:.2f}')
+            logger.info(f'F1-Measure: {f1:.2f}')
 
 if __name__ == '__main__':
     calculate_action_metrics()

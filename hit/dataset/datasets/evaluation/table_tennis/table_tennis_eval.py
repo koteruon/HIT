@@ -9,6 +9,7 @@ from pprint import pformat
 import numpy as np
 
 from .pascal_evaluation import object_detection_evaluation, standard_fields
+from .table_tennis_tiou import calculate_action_metrics
 
 
 def save_results(dataset, predictions, output_folder, logger):
@@ -24,6 +25,8 @@ def save_results(dataset, predictions, output_folder, logger):
         write_csv(ava_results, file_path, logger)
         if output_folder != None:
             write_files(ava_results, output_folder, logger)
+    logger.info("calculate action metrics")
+    calculate_action_metrics(logger)
     return ava_results
 
 
