@@ -50,3 +50,6 @@ requirements.txt
 detector/yolov8/weights
 detector/yolov8/runs
 detector/yolov8/datasets
+
+gt.csv
+pred.csv
