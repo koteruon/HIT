@@ -78,4 +78,4 @@ TEST:
   BOX_THRESH: 0.8
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 2
-OUTPUT_DIR: "data/output/hitnet_20240914/ava"
+OUTPUT_DIR: "data/output/hitnet/ava"
