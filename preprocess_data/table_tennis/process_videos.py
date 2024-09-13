@@ -12,7 +12,7 @@ import tqdm
 
 
 class ProcessVideos:
-    def max_width_n_max_height(self, width, height, targ_size=960):
+    def max_width_n_max_height(self, width, height, targ_size=640):
         if min(width, height) <= targ_size:
             new_width, new_height = width, height
         else:
@@ -26,7 +26,7 @@ class ProcessVideos:
         clip_root,
         stamp="",
         midframe_root="",
-        targ_size=960,
+        targ_size=640,
     ):
         probe_args = [
             "ffprobe",
@@ -84,7 +84,7 @@ class ProcessVideos:
                     cv2.imwrite(keyframe_filename, frame)
                 count += 1
 
-                if count >= stamp_item + targ_fps // 2:
+                if count >= stamp_item + 15:
                     time_stamp = time_stamp[1:]
             cap.release()
 
