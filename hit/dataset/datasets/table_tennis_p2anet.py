@@ -99,25 +99,19 @@ class DatasetEngine(data.Dataset):
         is_train=False,
     ):
         print(f"====================DatasetEngin-ProcessVideo======================")
+
         processVideosPool = ProcessVideosPool(is_train=is_train)
         processVideosPool.do_process()
-        print(f"===================================================================")
 
-        print(f"====================DatasetEngin-yolo72coco========================")
-        yolo72coco = Yolo72coco(is_train=is_train)
-        yolo72coco.transform(is_train=is_train)
-        yolo72coco.dump(is_train=is_train)
         print(f"===================================================================")
 
         # annotation file
-        print(f"====================DatasetEngin-Csv2COCOJson======================")
         csv_2_coco_json = Csv2COCOJson(is_train=is_train)
         if is_train:
             jsondata = csv_2_coco_json.csv2COCOJson()
         else:
             jsondata = csv_2_coco_json.genCOCOJson()
         csv_2_coco_json.dump(jsondata)
-        print(f"===================================================================")
         print(f"From {ann_file} ")
         print("loading annotations into memory...")
         tic = time.time()
@@ -159,6 +153,9 @@ class DatasetEngine(data.Dataset):
             clip_ids = [clip_id for clip_id in clip_ids if clip_id in clip2ann]
 
         # box_file
+        yolo72coco = Yolo72coco(is_train=is_train)
+        yolo72coco.transform(is_train=is_train)
+        yolo72coco.dump(is_train=is_train)
         # this is only for validation or testing
         # we use detected boxes, so remove clips without boxes detected.
         if box_file:
@@ -203,7 +200,6 @@ class DatasetEngine(data.Dataset):
         out, err = p.communicate()
         if p.returncode != 0:
             raise Exception("Message from keypoints_detection error!:{}".format(err))
-
         if keypoints_file:
             self.keypoint_box_results = self.load_box_file(keypoints_file)  ## xyxy
             imgToBoxes = self.img_to_boxes(self.keypoint_box_results, box_thresh)

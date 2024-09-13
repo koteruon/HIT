@@ -9,11 +9,10 @@ from pprint import pformat
 import numpy as np
 
 from .pascal_evaluation import object_detection_evaluation, standard_fields
-from .table_tennis_tiou import calculate_action_metrics
 
 
 def save_results(dataset, predictions, output_folder, logger):
-    logger.info("Preparing results for table_tennis format")
+    logger.info("Preparing results for AVA format")
     ava_results = prepare_for_detection(predictions, dataset)
     logger.info("Evaluating predictions")
     with tempfile.NamedTemporaryFile() as f:
@@ -25,8 +24,6 @@ def save_results(dataset, predictions, output_folder, logger):
         write_csv(ava_results, file_path, logger)
         if output_folder != None:
             write_files(ava_results, output_folder, logger)
-    logger.info("calculate action metrics")
-    calculate_action_metrics(logger)
     return ava_results
 
 
@@ -94,7 +91,6 @@ def write_csv(ava_results, csv_result_file, logger):
     start = time.time()
     with open(csv_result_file, "w") as csv_file:
         spamwriter = csv.writer(csv_file, delimiter=",")
-        spamwriter.writerow(["video_id","frame_stamp","x1","y1","x2","y2","action_id","conf"])
         for clip_key in ava_results:
             movie_name, timestamp = decode_image_key(clip_key)
             cur_result = ava_results[clip_key]
@@ -105,9 +101,10 @@ def write_csv(ava_results, csv_result_file, logger):
             for box, score, action_id in zip(boxes, scores, action_ids):
                 box_str = ["{:.5f}".format(cord) for cord in box]
                 score_str = "{:.5f}".format(score)
+                movie_name_with_dir = dict_data[movie_name] + "/" + movie_name
                 spamwriter.writerow(
                     [
-                        movie_name,
+                        movie_name_with_dir,
                         timestamp,
                     ]
                     + box_str

@@ -35,8 +35,6 @@ dist/
 /datasets
 /models
 /data
-/data_chaoen
-/data_chiahe
 /detector/nms/src/soft_nms_cpu.cpp
 
 # unwanted files
@@ -47,9 +45,3 @@ requirements.txt
 /tools
 /timm
 
-detector/yolov8/weights
-detector/yolov8/runs
-detector/yolov8/datasets
-
-gt.csv
-pred.csv

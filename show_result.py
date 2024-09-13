@@ -48,7 +48,7 @@ class ShowResult:
             x_, y_ = x1 * self.WIDTH, y1 * self.HEIGHT
             cv2.putText(
                 frame,
-                f"{str(self.act_dict[item.action_id])}  {item.conf:.2f}",
+                f"{str(self.act_dict[item.cls])}  {item.score:.2f}",
                 (int(x_), int(y_ - 25)),
                 0,
                 1,
@@ -121,15 +121,14 @@ class ShowResult:
                     # if np.abs(past_cx - b_cx) < 100 and np.abs(past_cy - b_cy) < 100:
                     #     cv2.line(frame, (b_cx, b_cy), (past_cx, past_cy), (97, 220, max(200-8*(len(past_)-b_idx), 0)), 5)
                     #     past_idx = b_idx
-
                 dataset = (
-                    csv_file.loc[csv_file["frame_stamp"] >= count - self.target_fps]
-                    .loc[csv_file["frame_stamp"] < count + self.target_fps]
-                    .loc[csv_file["video_id"] == f"{v_name}"]
-                    .loc[csv_file["conf"] >= self.act_th]
+                    csv_file.loc[csv_file["frame"] >= count - self.target_fps]
+                    .loc[csv_file["frame"] < count + self.target_fps]
+                    .loc[csv_file["video_id"] == f"test/{v_name}"]
+                    .loc[csv_file["score"] >= self.act_th]
                 )
 
-                data = dataset.loc[csv_file["action_id"] == 1]
+                data = dataset.loc[csv_file["cls"] == 1]
 
                 if len(data) > 0:
                     frame, status = self.writeActionText(frame, data, [255, 0, 255], person_list)
@@ -137,19 +136,19 @@ class ShowResult:
                         new_v.write(frame)
                         continue
 
-                data = dataset.loc[csv_file["action_id"] == 2]
+                data = dataset.loc[csv_file["cls"] == 2]
 
                 if len(data) > 0:
                     frame, status = self.writeActionText(frame, data, [255, 0, 0], person_list)
 
                 data = (
-                    csv_file.loc[csv_file["frame_stamp"] >= count - self.target_fps * 3]
-                    .loc[csv_file["frame_stamp"] < count + self.target_fps * 3]
+                    csv_file.loc[csv_file["frame"] >= count - self.target_fps * 3]
+                    .loc[csv_file["frame"] < count + self.target_fps * 3]
                     .loc[csv_file["video_id"] == f"test/{v_name}"]
-                    .loc[csv_file["conf"] >= self.act_th]
+                    .loc[csv_file["score"] >= self.act_th]
                 )
 
-                if len(data) >= 2 * 3 and all(pd.unique(data["action_id"]) == 3):
+                if len(data) >= 2 * 3 and all(pd.unique(data["cls"]) == 3):
                     all_x = [int(self.ball_track_list[b_idx][0] * self.WIDTH) for b_idx in past_]
                     all_y = [int(self.ball_track_list[b_idx][1] * self.HEIGHT) for b_idx in past_]
                     if len(table_list) > 0:
@@ -189,15 +188,13 @@ class ShowResult:
         return None
 
     def main(self, num_workers=4):
-        csv_file = pd.read_csv(self.csv_path)
-        csv_file.columns = ["video_id", "frame_stamp", "x1", "y1", "x2", "y2", "action_id", "conf"]
-        cols_to_convert = ["frame_stamp", "x1", "y1", "x2", "y2", "action_id", "conf"]
-        csv_file[cols_to_convert] = csv_file[cols_to_convert].apply(pd.to_numeric, errors='coerce')
+        csv_file = pd.read_csv(self.csv_path, header=None)
+        csv_file.columns = ["video_id", "frame", "x1", "y1", "x2", "y2", "cls", "score"]
 
         v_name_list = [v_path.split(".")[0] for v_path in os.listdir(self.v_root)]
         v_path_list = [os.path.join(self.v_root, v_path) for v_path in os.listdir(self.v_root)]
         lbl_dir_list = [os.path.join(self.lbl_root, v_name) for v_name in v_name_list]
-        csv_int_v = [csv_file.loc[csv_file["video_id"] == f"{v_name}"] for v_name in v_name_list]
+        csv_int_v = [csv_file.loc[csv_file["video_id"] == f"test/{v_name}"] for v_name in v_name_list]
 
         v_pair = list(zip(csv_int_v, v_name_list, v_path_list, lbl_dir_list))
         # v_pair = sorted(v_pair, key=lambda x: int(x[0].split('-')[-1]))
