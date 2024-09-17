@@ -5,13 +5,22 @@ import pandas as pd
 
 
 class MDCSV:
+    """
+    ==========
+    actions
+    ==========
+    serve 1
+    stroke 2
+    others 3
+    stand by 4
+    """
+
     def __init__(self) -> None:
         self.csv_path = r"data/table_tennis/annotations/action_timestamp_tmp.csv"
-        self.movie_root = r"data/table_tennis/videos/train"
+        self.movie_root = r"data/table_tennis/videos/test"
         self.columns = ["video_id", "time_stamp", "action_id", "entity_id", "frame_stamp"]
         self.movie_path_list = []
-        self.frame_csv_tmp = pd.DataFrame(columns=self.columns)
-        self.step = 10
+        self.step = 1
         self.next_step = self.step - 1
         self.privious_step = -self.step - 1
 
@@ -27,8 +36,8 @@ class MDCSV:
                 file.write(",".join(self.columns))
         self.csv_df = pd.read_csv(self.csv_path)
 
-    def get_df_action_id(self, csv_df, frame_stamp, entity_id):
-        left_action_id_series = csv_df[(csv_df["frame_stamp"] == frame_stamp) & (csv_df["entity_id"] == entity_id)][
+    def get_df_action_id(self, csv_df, video_id, frame_stamp, entity_id):
+        left_action_id_series = csv_df[(csv_df["video_id"] == video_id) & (csv_df["frame_stamp"] == frame_stamp) & (csv_df["entity_id"] == entity_id)][
             "action_id"
         ]
         if not left_action_id_series.empty:
@@ -36,22 +45,33 @@ class MDCSV:
         else:
             return None
 
-    def show_frame(self, frame, frame_stamp):
-        left_action_id = self.get_df_action_id(self.frame_csv_tmp, frame_stamp, 1)
-        right_action_id = self.get_df_action_id(self.frame_csv_tmp, frame_stamp, 2)
+    def show_frame(self, frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2):
+        if action_1 != 0:
+            left_action_id = str(action_1)
+        else:
+            left_action_id = self.get_df_action_id(self.csv_df, video_id, frame_stamp, 1)
 
-        if left_action_id == None:
-            left_action_id = self.get_df_action_id(self.csv_df, frame_stamp, 1)
-        if right_action_id == None:
-            right_action_id = self.get_df_action_id(self.csv_df, frame_stamp, 2)
+        if action_2 != 0:
+            right_action_id = str(action_2)
+        else:
+            right_action_id = self.get_df_action_id(self.csv_df, video_id, frame_stamp, 2)
 
         hight = frame.shape[0]
         width = frame.shape[1]
         frame_clone = frame.copy()
+        if action_1 != 0:
+            color = (0, 0, 255)  # Red color
+        else:
+            color = (0, 255, 0)  # Green color
         if left_action_id:
             cv2.putText(
-                frame_clone, left_action_id, (width // 5, hight // 2), cv2.FONT_HERSHEY_SIMPLEX, 16, (0, 255, 0), 4
+                frame_clone, left_action_id, (width // 5, hight // 2), cv2.FONT_HERSHEY_SIMPLEX, 16, color, 4
             )
+
+        if action_2 != 0:
+            color = (0, 0, 255)  # Red color
+        else:
+            color = (0, 255, 0)  # Green color
         if right_action_id:
             cv2.putText(
                 frame_clone,
@@ -59,61 +79,80 @@ class MDCSV:
                 ((width * 3) // 5, hight // 2),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 16,
-                (0, 255, 0),
+                color,
                 4,
             )
+
+        if is_recording:
+            status_text = "RECORD"
+            color = (0, 0, 255)  # Red color
+        else:
+            status_text = "STANDBY"
+            color = (0, 255, 0)  # Green color
+        cv2.putText(
+            frame_clone,
+            status_text,
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            color,
+            2,
+        )
+
+        # 添加當前幀號和總幀數的顯示
+        frame_info_text = f"{int(frame_stamp)} / {int(total_frames)}"
+        cv2.putText(
+            frame_clone,
+            frame_info_text,
+            (width - 350, 30),  # 調整這裡的坐標來控制文字的位置
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 255),  # White color
+            2,
+        )
+
         frame_s = cv2.resize(frame_clone, (width // 2, hight // 2))
         cv2.imshow("Frame", frame_s)
 
-    def mark_action_timestamps(self, frame, video_id, time_stamp, key, entity_id, frame_stamp):
-        if key == ord("1"):
-            action_id = 1
-        elif key == ord("2"):
-            action_id = 2
-        elif key == ord("3"):
-            action_id = 3
-        elif key == ord("4"):
-            action_id = 4
+    def mark_action_timestamps(self, video_id, action_1, action_2, frame_stamp_start, frame_stamp_end):
+        if action_1 == 0 and action_2 == 0:
+            return
 
-        # time_stamp
-        time_stamp_series = self.csv_df[
-            (self.csv_df["frame_stamp"] == frame_stamp) & (self.csv_df["entity_id"] == entity_id)
-        ]["time_stamp"]
-        if not time_stamp_series.empty:
-            time_stamp = time_stamp_series.iloc[0]
+        for frame_stamp in range(frame_stamp_start, frame_stamp_end + 1):
+            # 如果已經有紀錄了，就直接修改動作值，沒有紀錄則增加一行
+            if action_1 != 0:
+                new_data = {
+                    "video_id": video_id,
+                    "time_stamp": -1,
+                    "action_id": action_1,
+                    "entity_id": 1,
+                    "frame_stamp": frame_stamp,
+                }
+                left_action_id = self.get_df_action_id(self.csv_df, video_id, frame_stamp, 1)
+                if left_action_id != None:
+                    self.csv_df.loc[
+                        (self.csv_df["video_id"] == video_id) & (self.csv_df["frame_stamp"] == frame_stamp) & (self.csv_df["entity_id"] == 1), "action_id"
+                    ] = action_1
+                else:
+                    self.csv_df = self.csv_df.append(new_data, ignore_index=True)
 
-        new_data = {
-            "video_id": video_id,
-            "time_stamp": time_stamp,
-            "action_id": action_id,
-            "entity_id": entity_id,
-            "frame_stamp": frame_stamp,
-        }
-        self.frame_csv_tmp = self.frame_csv_tmp.append(new_data, ignore_index=True)
-        if entity_id == 2:
-            self.csv_df.loc[self.csv_df["time_stamp"] >= time_stamp, "time_stamp"] += 1
+            if action_2 != 0:
+                new_data = {
+                    "video_id": video_id,
+                    "time_stamp": -1,
+                    "action_id": action_2,
+                    "entity_id": 2,
+                    "frame_stamp": frame_stamp,
+                }
+                right_action_id = self.get_df_action_id(self.csv_df, video_id, frame_stamp, 2)
+                if right_action_id != None:
+                    self.csv_df.loc[
+                        (self.csv_df["video_id"] == video_id) & (self.csv_df["frame_stamp"] == frame_stamp) & (self.csv_df["entity_id"] == 2), "action_id"
+                    ] = action_2
+                else:
+                    self.csv_df = self.csv_df.append(new_data, ignore_index=True)
 
-            left_action_id = self.get_df_action_id(self.csv_df, frame_stamp, 1)
-            right_action_id = self.get_df_action_id(self.csv_df, frame_stamp, 2)
-            if left_action_id != None:
-                self.csv_df.loc[
-                    (self.csv_df["frame_stamp"] == frame_stamp) & (self.csv_df["entity_id"] == 1), "action_id"
-                ] = self.frame_csv_tmp[self.frame_csv_tmp["entity_id"] == 1]["action_id"].iloc[0]
-            else:
-                self.csv_df = pd.concat([self.csv_df, self.frame_csv_tmp[self.frame_csv_tmp["entity_id"] == 1]])
-            if right_action_id != None:
-                self.csv_df.loc[
-                    (self.csv_df["frame_stamp"] == frame_stamp) & (self.csv_df["entity_id"] == 2), "action_id"
-                ] = self.frame_csv_tmp[self.frame_csv_tmp["entity_id"] == 2]["action_id"].iloc[0]
-            else:
-                self.csv_df = pd.concat([self.csv_df, self.frame_csv_tmp[self.frame_csv_tmp["entity_id"] == 2]])
-
-            self.csv_df = self.csv_df.sort_values(by=["video_id", "time_stamp", "entity_id"])
-            time_stamp += 1
-
-        self.show_frame(frame, frame_stamp)
-
-        return time_stamp
+        self.csv_df = self.csv_df.sort_values(by=["video_id", "frame_stamp", "entity_id"])
 
     def mark_action(self):
         movie_names_idx = 0
@@ -126,7 +165,11 @@ class MDCSV:
                 cap = cv2.VideoCapture(movie_path)
                 total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
                 read_video_capture_flag = False
-                time_stamp = 0
+                # 是否正在紀錄動作中
+                is_recording = False
+                recode_frame_stamp = 0
+                action_1 = 0
+                action_2 = 0
 
             ret, frame = cap.read()
 
@@ -141,24 +184,65 @@ class MDCSV:
             frame_stamp = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
 
             # 顯示畫面
-            self.show_frame(frame, frame_stamp)
+            self.show_frame(frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2)
 
             # initial values
             entity_id = 1
-            self.frame_csv_tmp = pd.DataFrame(columns=self.columns)
 
             # 按下按鍵
             break_flag = False
+            entity_one_is_zero = False
             while True:
                 key = cv2.waitKey(0) & 0xFF
-                # 按下1234
-                if key == ord("1") or key == ord("2") or key == ord("3") or key == ord("4"):
-                    time_stamp = self.mark_action_timestamps(frame, video_id, time_stamp, key, entity_id, frame_stamp)
+                # 0代表null
+                if key == ord("0"):
                     if entity_id == 1:
+                        entity_one_is_zero = True
+                        action_1 = 0
                         entity_id = 2
+                        self.show_frame(frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2)
                         continue
                     elif entity_id == 2:
-                        key = 83
+                        action_2 = 0
+                        if entity_one_is_zero:
+                            entity_one_is_zero = False
+                        else:
+                            is_recording = True
+                            recode_frame_stamp = frame_stamp
+                        self.show_frame(frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2)
+                # 按下1234
+                if key == ord("1") or key == ord("2") or key == ord("3") or key == ord("4"):
+                    if entity_id == 1:
+                        if key == ord("1"):
+                            action_1 = 1
+                        elif key == ord("2"):
+                            action_1 = 2
+                        elif key == ord("3"):
+                            action_1 = 3
+                        elif key == ord("4"):
+                            action_1 = 4
+                        entity_id = 2
+                        self.show_frame(frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2)
+                        continue
+                    elif entity_id == 2:
+                        if key == ord("1"):
+                            action_2 = 1
+                        elif key == ord("2"):
+                            action_2 = 2
+                        elif key == ord("3"):
+                            action_2 = 3
+                        elif key == ord("4"):
+                            action_2 = 4
+                        is_recording = True
+                        recode_frame_stamp = frame_stamp
+                        self.show_frame(frame, video_id, frame_stamp, total_frames, is_recording, action_1, action_2)
+                # 空白見結束record
+                if key == ord(" ") and is_recording:
+                    self.mark_action_timestamps(video_id, action_1, action_2, recode_frame_stamp, frame_stamp)
+                    action_1 = 0
+                    action_2 = 0
+                    is_recording = False
+                    key = 83
                 # 按下 'q' 键退出循环
                 if key == ord("q"):
                     break_flag = True
@@ -194,7 +278,21 @@ class MDCSV:
             if break_flag:
                 break
 
+    def count_timestamps(self):
+        self.csv_df = self.csv_df.sort_values(by=["video_id", "frame_stamp", "entity_id"])
+        prev_video_id = None
+        current_time_stamp = 0
+        for index, row in self.csv_df.iterrows():
+            if prev_video_id != row["video_id"]:
+                current_time_stamp = 0
+            else:
+                if index > 0 and row["frame_stamp"] != self.csv_df.loc[index - 1, "frame_stamp"]:
+                    current_time_stamp += 1
+
+            self.csv_df.at[index, "time_stamp"] = current_time_stamp
+            prev_video_id = row["video_id"]
     def dump(self):
+        self.count_timestamps()
         self.csv_df.to_csv(self.csv_path, encoding="utf8", index=False, header=True)
 
 
