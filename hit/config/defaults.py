@@ -11,6 +11,15 @@ _C.MODEL = CN()
 _C.MODEL.WEIGHT = ""
 
 # -----------------------------------------------------------------------------
+# Data config.
+# -----------------------------------------------------------------------------
+
+_C.DATA = CN()
+
+# List of input frame channel dimensions.
+_C.DATA.INPUT_CHANNEL_NUM = [3]
+
+# -----------------------------------------------------------------------------
 # ROI action head config.
 # -----------------------------------------------------------------------------
 _C.MODEL.ROI_ACTION_HEAD = CN()
@@ -21,9 +30,9 @@ _C.MODEL.ROI_ACTION_HEAD.FEATURE_EXTRACTOR = "MaxpoolFeatureExtractor"
 
 # Config for pooler in feature extractor.
 # Pooler type, can be 'pooling3d' or 'align3d'
-_C.MODEL.ROI_ACTION_HEAD.POOLER_TYPE = 'align3d'
+_C.MODEL.ROI_ACTION_HEAD.POOLER_TYPE = "align3d"
 _C.MODEL.ROI_ACTION_HEAD.POOLER_RESOLUTION = 7
-_C.MODEL.ROI_ACTION_HEAD.POOLER_SCALE = 1./16
+_C.MODEL.ROI_ACTION_HEAD.POOLER_SCALE = 1.0 / 16
 # Only used for align3d
 _C.MODEL.ROI_ACTION_HEAD.POOLER_SAMPLING_RATIO = 0
 _C.MODEL.ROI_ACTION_HEAD.MEAN_BEFORE_POOLER = False
@@ -50,7 +59,7 @@ _C.MODEL.ROI_ACTION_HEAD.PERSON_LOSS_WEIGHT = float(_C.MODEL.ROI_ACTION_HEAD.NUM
 # Focal loss config.
 _C.MODEL.ROI_ACTION_HEAD.FOCAL_LOSS = CN()
 _C.MODEL.ROI_ACTION_HEAD.FOCAL_LOSS.GAMMA = 2.0
-_C.MODEL.ROI_ACTION_HEAD.FOCAL_LOSS.ALPHA = -1.
+_C.MODEL.ROI_ACTION_HEAD.FOCAL_LOSS.ALPHA = -1.0
 
 # -----------------------------------------------------------------------------
 # INPUT
@@ -78,7 +87,7 @@ _C.INPUT.ALPHA = 8
 _C.INPUT.SLOW_JITTER = False
 
 _C.INPUT.COLOR_JITTER = False
-_C.INPUT.HUE_JITTER = 20.0 #in degree, hue is in 0~360
+_C.INPUT.HUE_JITTER = 20.0  # in degree, hue is in 0~360
 _C.INPUT.SAT_JITTER = 0.1
 _C.INPUT.VAL_JITTER = 0.1
 
@@ -117,6 +126,7 @@ _C.MODEL.BACKBONE.CONV_BODY = "Slowfast-Resnet50"
 
 _C.MODEL.BACKBONE.FROZEN_BN = False
 
+# For alphaction backbones
 _C.MODEL.BACKBONE.BN_MOMENTUM = 0.1
 _C.MODEL.BACKBONE.BN_EPSILON = 1e-05
 
@@ -134,8 +144,8 @@ _C.MODEL.BACKBONE.I3D.CONV3_GROUP_NL = False
 # Slowfast options
 # ---------------------------------------------------------------------------- #
 _C.MODEL.BACKBONE.SLOWFAST = CN()
-_C.MODEL.BACKBONE.SLOWFAST.BETA = 1./8
-_C.MODEL.BACKBONE.SLOWFAST.LATERAL = 'tconv'
+_C.MODEL.BACKBONE.SLOWFAST.BETA = 1.0 / 8
+_C.MODEL.BACKBONE.SLOWFAST.LATERAL = "tconv"
 _C.MODEL.BACKBONE.SLOWFAST.SLOW = CN()
 _C.MODEL.BACKBONE.SLOWFAST.SLOW.ACTIVE = True
 _C.MODEL.BACKBONE.SLOWFAST.SLOW.CONV3_NONLOCAL = True
@@ -150,22 +160,122 @@ _C.MODEL.BACKBONE.SLOWFAST.FAST.CONV3_GROUP_NL = False
 # ---------------------------------------------------------------------------- #
 # Nonlocal options
 # ---------------------------------------------------------------------------- #
-_C.MODEL.NONLOCAL = CN()
-_C.MODEL.NONLOCAL.CONV_INIT_STD = 0.01
-_C.MODEL.NONLOCAL.USE_ZERO_INIT_CONV = False
-_C.MODEL.NONLOCAL.NO_BIAS = False
-_C.MODEL.NONLOCAL.USE_MAXPOOL = True
-_C.MODEL.NONLOCAL.USE_SOFTMAX = True
-_C.MODEL.NONLOCAL.USE_SCALE = True
+_C.MODEL.BACKBONE.NONLOCAL = CN()
+_C.MODEL.BACKBONE.NONLOCAL.CONV_INIT_STD = 0.01
+_C.MODEL.BACKBONE.NONLOCAL.USE_ZERO_INIT_CONV = False
+_C.MODEL.BACKBONE.NONLOCAL.NO_BIAS = False
+_C.MODEL.BACKBONE.NONLOCAL.USE_MAXPOOL = True
+_C.MODEL.BACKBONE.NONLOCAL.USE_SOFTMAX = True
+_C.MODEL.BACKBONE.NONLOCAL.USE_SCALE = True
 
-_C.MODEL.NONLOCAL.USE_BN = True
-_C.MODEL.NONLOCAL.FROZEN_BN = False
+_C.MODEL.BACKBONE.NONLOCAL.USE_BN = True
+_C.MODEL.BACKBONE.NONLOCAL.FROZEN_BN = False
 
-_C.MODEL.NONLOCAL.BN_MOMENTUM = 0.1
-_C.MODEL.NONLOCAL.BN_EPSILON = 1e-05
-_C.MODEL.NONLOCAL.BN_INIT_GAMMA = 0.0
+_C.MODEL.BACKBONE.NONLOCAL.BN_MOMENTUM = 0.1
+_C.MODEL.BACKBONE.NONLOCAL.BN_EPSILON = 1e-05
+_C.MODEL.BACKBONE.NONLOCAL.BN_INIT_GAMMA = 0.0
+
+# ---------------------------------------------------------------------------- #
+# PySlowFast And Vit backbones options
+# ---------------------------------------------------------------------------- #
+# For PySlowFast backbones
+_C.MODEL.BACKBONE.RESNET = CN()
+
+# Transformation function.
+_C.MODEL.BACKBONE.RESNET.TRANS_FUNC = "bottleneck_transform"
+
+# Number of groups. 1 for ResNet, and larger than 1 for ResNeXt).
+_C.MODEL.BACKBONE.RESNET.NUM_GROUPS = 1
+
+# Width of each group (64 -> ResNet; 4 -> ResNeXt).
+_C.MODEL.BACKBONE.RESNET.WIDTH_PER_GROUP = 64
+
+# Apply relu in a inplace manner.
+_C.MODEL.BACKBONE.RESNET.INPLACE_RELU = True
+
+# Apply stride to 1x1 conv.
+_C.MODEL.BACKBONE.RESNET.STRIDE_1X1 = False
+
+#  If true, initialize the gamma of the final BN of each block to zero.
+_C.MODEL.BACKBONE.RESNET.ZERO_INIT_FINAL_BN = False
+
+# Number of weight layers.
+_C.MODEL.BACKBONE.RESNET.DEPTH = 50
+
+# If the current block has more than NUM_BLOCK_TEMP_KERNEL blocks, use temporal
+# kernel of 1 for the rest of the blocks.
+_C.MODEL.BACKBONE.RESNET.NUM_BLOCK_TEMP_KERNEL = [[3], [4], [6], [3]]
+
+# Size of stride on different res stages.
+_C.MODEL.BACKBONE.RESNET.SPATIAL_STRIDES = [[1], [2], [2], [2]]
+
+# Size of dilation on different res stages.
+_C.MODEL.BACKBONE.RESNET.SPATIAL_DILATIONS = [[1], [1], [1], [1]]
+
+# Whether use modulated DCN on Res2, Res3, Res4, Res5 or not
+_C.MODEL.BACKBONE.RESNET.DEFORM_ON_PER_STAGE = [False, False, False, False]
+
+# Index of each stage and block to add nonlocal layers.
+_C.MODEL.BACKBONE.NONLOCAL.LOCATION = [[[]], [[]], [[]], [[]]]
+
+# Number of group for nonlocal for each stage.
+_C.MODEL.BACKBONE.NONLOCAL.GROUP = [[1], [1], [1], [1]]
+
+# Instatiation to use for non-local layer.
+_C.MODEL.BACKBONE.NONLOCAL.INSTANTIATION = "dot_product"
 
 
+# Size of pooling layers used in Non-Local.
+_C.MODEL.BACKBONE.NONLOCAL.POOL = [
+    # Res2
+    [[1, 2, 2], [1, 2, 2]],
+    # Res3
+    [[1, 2, 2], [1, 2, 2]],
+    # Res4
+    [[1, 2, 2], [1, 2, 2]],
+    # Res5
+    [[1, 2, 2], [1, 2, 2]],
+]
+
+# Corresponds to the inverse of the channel reduction ratio, $\beta$ between
+# the Slow and Fast pathways.
+_C.MODEL.BACKBONE.SLOWFAST.BETA_INV = 8
+
+# Corresponds to the frame rate reduction ratio, $\alpha$ between the Slow and
+# Fast pathways.
+_C.MODEL.BACKBONE.SLOWFAST.ALPHA = 8
+
+# Ratio of channel dimensions between the Slow and Fast pathways.
+_C.MODEL.BACKBONE.SLOWFAST.FUSION_CONV_CHANNEL_RATIO = 2
+
+# Kernel dimension used for fusing information from Fast pathway to Slow
+# pathway.
+_C.MODEL.BACKBONE.SLOWFAST.FUSION_KERNEL_SZ = 5
+
+
+_C.MODEL.BACKBONE.ViT = CN()
+_C.MODEL.BACKBONE.ViT.TUBELET_SIZE = 2
+_C.MODEL.BACKBONE.ViT.PATCH_SIZE = 16
+_C.MODEL.BACKBONE.ViT.IN_CHANS = 3
+_C.MODEL.BACKBONE.ViT.EMBED_DIM = 768
+_C.MODEL.BACKBONE.ViT.PRETRAIN_IMG_SIZE = 224
+_C.MODEL.BACKBONE.ViT.USE_LEARNABLE_POS_EMB = False
+_C.MODEL.BACKBONE.ViT.DROP_RATE = 0.0
+_C.MODEL.BACKBONE.ViT.ATTN_DROP_RATE = 0.0
+_C.MODEL.BACKBONE.ViT.DROP_PATH_RATE = 0.2  #
+_C.MODEL.BACKBONE.ViT.DEPTH = 12
+_C.MODEL.BACKBONE.ViT.NUM_HEADS = 12
+_C.MODEL.BACKBONE.ViT.MLP_RATIO = 4
+_C.MODEL.BACKBONE.ViT.QKV_BIAS = True
+_C.MODEL.BACKBONE.ViT.QK_SCALE = None
+_C.MODEL.BACKBONE.ViT.INIT_VALUES = 0.0
+_C.MODEL.BACKBONE.ViT.USE_CHECKPOINT = True
+_C.MODEL.BACKBONE.ViT.LAYER_DECAY = 0.75
+_C.MODEL.BACKBONE.ViT.WEIGHT_DECAY = 0.05
+_C.MODEL.BACKBONE.ViT.NO_WEIGHT_DECAY = ["pos_embed"]
+
+
+# hit_structure
 _C.MODEL.HIT_STRUCTURE = CN()
 _C.MODEL.HIT_STRUCTURE.ACTIVE = False
 _C.MODEL.HIT_STRUCTURE.STRUCTURE = "hitnet"
@@ -180,9 +290,9 @@ _C.MODEL.HIT_STRUCTURE.LENGTH = (30, 30)
 _C.MODEL.HIT_STRUCTURE.MEMORY_RATE = 1
 _C.MODEL.HIT_STRUCTURE.FUSION = "concat"
 _C.MODEL.HIT_STRUCTURE.CONV_INIT_STD = 0.01
-_C.MODEL.HIT_STRUCTURE.DROPOUT = 0.
+_C.MODEL.HIT_STRUCTURE.DROPOUT = 0.0
 _C.MODEL.HIT_STRUCTURE.NO_BIAS = False
-_C.MODEL.HIT_STRUCTURE.I_BLOCK_LIST = ['P', 'O', 'H', 'M', 'P', 'O', 'H', 'M']
+_C.MODEL.HIT_STRUCTURE.I_BLOCK_LIST = ["P", "O", "H", "M", "P", "O", "H", "M"]
 _C.MODEL.HIT_STRUCTURE.LAYER_NORM = False
 _C.MODEL.HIT_STRUCTURE.TEMPORAL_POSITION = True
 _C.MODEL.HIT_STRUCTURE.ROI_DIM_REDUCE = True
@@ -196,6 +306,7 @@ _C.SOLVER = CN()
 _C.SOLVER.MAX_ITER = 75000
 
 _C.SOLVER.BASE_LR = 0.02
+_C.SOLVER.BETAS = (0.9, 0.999)
 _C.SOLVER.BIAS_LR_FACTOR = 2
 _C.SOLVER.IA_LR_FACTOR = 1.0
 
@@ -220,10 +331,14 @@ _C.SOLVER.WARMUP_METHOD = "linear"
 _C.SOLVER.CHECKPOINT_PERIOD = 5000
 _C.SOLVER.EVAL_PERIOD = 5000
 
+_C.SOLVER.DAMPENING = 0
+_C.SOLVER.NESTEROV = False
+
 # Number of video clips per batch
 # This is global, so if we have 8 GPUs and VIDEOS_PER_BATCH = 16, each GPU will
 # see 2 clips per batch
-_C.SOLVER.VIDEOS_PER_BATCH = 32
+_C.SOLVER.VIDEOS_PER_BATCH = 16
+_C.SOLVER.OPTIMIZING_METHOD = "adamw"
 
 
 # ---------------------------------------------------------------------------- #

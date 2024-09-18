@@ -1,10 +1,12 @@
-import numpy as np
-import tempfile
-import os
-from pprint import pformat
 import csv
+import os
+import tempfile
 import time
 from collections import defaultdict
+from pprint import pformat
+
+import numpy as np
+
 from .pascal_evaluation import object_detection_evaluation, standard_fields
 
 
@@ -19,9 +21,7 @@ def do_ava_evaluation(dataset, predictions, output_folder, logger):
         if len(dataset.eval_file_paths) == 0:
             write_csv(ava_results, file_path, logger)
             return
-        eval_res = evaluate_predictions_on_ava(
-            dataset.eval_file_paths, ava_results, file_path, logger
-        )
+        eval_res = evaluate_predictions_on_ava(dataset.eval_file_paths, ava_results, file_path, logger)
     logger.info(pformat(eval_res, indent=2))
     if output_folder:
         log_file_path = os.path.join(output_folder, "result.log")
@@ -32,7 +32,7 @@ def do_ava_evaluation(dataset, predictions, output_folder, logger):
 
 def make_image_key(video_id, timestamp):
     """Returns a unique identifier for a video id & timestamp."""
-    return "%s,%04d" % (video_id, int(timestamp))
+    return "%s,%04d" % (video_id, float(timestamp))
 
 
 def decode_image_key(image_key):
@@ -65,16 +65,12 @@ def prepare_for_ava_detection(predictions, dataset):
         scores = scores[box_ids, action_ids]
         action_ids = action_ids + 1
 
-        movie_name = video_info['movie']
-        timestamp = video_info['timestamp']
+        movie_name = video_info["movie"]
+        timestamp = video_info["timestamp"]
 
         clip_key = make_image_key(movie_name, timestamp)
 
-        ava_results[clip_key] = {
-            "boxes": boxes,
-            "scores": scores,
-            "action_ids": action_ids
-        }
+        ava_results[clip_key] = {"boxes": boxes, "scores": scores, "action_ids": action_ids}
     return ava_results
 
 
@@ -89,7 +85,7 @@ def read_exclusions(exclusions_file):
       or an empty set if exclusions file is None.
     """
     excluded = set()
-    exclusions_file = open(exclusions_file, 'r')
+    exclusions_file = open(exclusions_file, "r")
     if exclusions_file:
         reader = csv.reader(exclusions_file)
         for row in reader:
@@ -113,7 +109,7 @@ def read_labelmap(labelmap_file):
     class_ids = set()
     name = ""
     class_id = ""
-    labelmap_file = open(labelmap_file, 'r')
+    labelmap_file = open(labelmap_file, "r")
     for line in labelmap_file:
         if line.startswith("  name:"):
             name = line.split('"')[1]
@@ -147,7 +143,7 @@ def read_csv(csv_file, logger, class_whitelist=None):
     boxes = defaultdict(list)
     labels = defaultdict(list)
     scores = defaultdict(list)
-    csv_file = open(csv_file, 'r')
+    csv_file = open(csv_file, "r")
     reader = csv.reader(csv_file)
     for row in reader:
         assert len(row) in [7, 8], "Wrong number of columns: " + row
@@ -168,8 +164,8 @@ def read_csv(csv_file, logger, class_whitelist=None):
 
 def write_csv(ava_results, csv_result_file, logger):
     start = time.time()
-    with open(csv_result_file, 'w') as csv_file:
-        spamwriter = csv.writer(csv_file, delimiter=',')
+    with open(csv_result_file, "w") as csv_file:
+        spamwriter = csv.writer(csv_file, delimiter=",")
         for clip_key in ava_results:
             movie_name, timestamp = decode_image_key(clip_key)
             cur_result = ava_results[clip_key]
@@ -178,9 +174,16 @@ def write_csv(ava_results, csv_result_file, logger):
             action_ids = cur_result["action_ids"]
             assert boxes.shape[0] == scores.shape[0] == action_ids.shape[0]
             for box, score, action_id in zip(boxes, scores, action_ids):
-                box_str = ['{:.5f}'.format(cord) for cord in box]
-                score_str = '{:.5f}'.format(score)
-                spamwriter.writerow([movie_name, timestamp, ] + box_str + [action_id, score_str])
+                box_str = ["{:.5f}".format(cord) for cord in box]
+                score_str = "{:.5f}".format(score)
+                spamwriter.writerow(
+                    [
+                        movie_name,
+                        timestamp,
+                    ]
+                    + box_str
+                    + [action_id, score_str]
+                )
     print_time(logger, "write file " + csv_result_file, start)
 
 
@@ -196,30 +199,26 @@ def evaluate_predictions_on_ava(eval_file_paths, ava_results, csv_result_file, l
     exclusions = eval_file_paths["exclusion_file"]
 
     categories, class_whitelist = read_labelmap(labelmap)
-    logger.info("CATEGORIES (%d):\n%s", len(categories),
-                pformat(categories, indent=2))
+    logger.info("CATEGORIES (%d):\n%s", len(categories), pformat(categories, indent=2))
     excluded_keys = read_exclusions(exclusions)
 
-    pascal_evaluator = object_detection_evaluation.PascalDetectionEvaluator(
-        categories)
+    pascal_evaluator = object_detection_evaluation.PascalDetectionEvaluator(categories)
 
     # Reads the ground truth dataset.
     boxes, labels, _ = read_csv(groundtruth, logger, class_whitelist)
     start = time.time()
     for image_key in boxes:
         if image_key in excluded_keys:
-            logger.info(("Found excluded timestamp in ground truth: %s. "
-                         "It will be ignored."), image_key)
+            logger.info(("Found excluded timestamp in ground truth: %s. " "It will be ignored."), image_key)
             continue
         pascal_evaluator.add_single_ground_truth_image_info(
-            image_key, {
-                standard_fields.InputDataFields.groundtruth_boxes:
-                    np.array(boxes[image_key], dtype=float),
-                standard_fields.InputDataFields.groundtruth_classes:
-                    np.array(labels[image_key], dtype=int),
-                standard_fields.InputDataFields.groundtruth_difficult:
-                    np.zeros(len(boxes[image_key]), dtype=bool)
-            })
+            image_key,
+            {
+                standard_fields.InputDataFields.groundtruth_boxes: np.array(boxes[image_key], dtype=float),
+                standard_fields.InputDataFields.groundtruth_classes: np.array(labels[image_key], dtype=int),
+                standard_fields.InputDataFields.groundtruth_difficult: np.zeros(len(boxes[image_key]), dtype=bool),
+            },
+        )
     print_time(logger, "convert groundtruth", start)
 
     # Reads detections dataset.
@@ -227,18 +226,16 @@ def evaluate_predictions_on_ava(eval_file_paths, ava_results, csv_result_file, l
     start = time.time()
     for image_key in boxes:
         if image_key in excluded_keys:
-            logger.info(("Found excluded timestamp in detections: %s. "
-                         "It will be ignored."), image_key)
+            logger.info(("Found excluded timestamp in detections: %s. " "It will be ignored."), image_key)
             continue
         pascal_evaluator.add_single_detected_image_info(
-            image_key, {
-                standard_fields.DetectionResultFields.detection_boxes:
-                    np.array(boxes[image_key], dtype=float),
-                standard_fields.DetectionResultFields.detection_classes:
-                    np.array(labels[image_key], dtype=int),
-                standard_fields.DetectionResultFields.detection_scores:
-                    np.array(scores[image_key], dtype=float)
-            })
+            image_key,
+            {
+                standard_fields.DetectionResultFields.detection_boxes: np.array(boxes[image_key], dtype=float),
+                standard_fields.DetectionResultFields.detection_classes: np.array(labels[image_key], dtype=int),
+                standard_fields.DetectionResultFields.detection_scores: np.array(scores[image_key], dtype=float),
+            },
+        )
     print_time(logger, "convert detections", start)
 
     start = time.time()
