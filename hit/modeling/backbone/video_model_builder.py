@@ -342,6 +342,8 @@ class SlowFast(nn.Module):
             norm_module=self.norm_module,
         )
 
+        self.dim_out = width_per_group * 32 + width_per_group * 32 // cfg.MODEL.BACKBONE.SLOWFAST.BETA_INV
+
     def forward(self, slow_x, fast_x):
         inputs = []
         x = [slow_x, fast_x]

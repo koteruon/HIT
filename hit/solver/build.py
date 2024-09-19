@@ -84,6 +84,152 @@ def get_parameter_groups(
 
 
 def make_optimizer(cfg, model):
+    """
+    Construct a stochastic gradient descent or ADAM optimizer with momentum.
+    Details can be found in:
+    Herbert Robbins, and Sutton Monro. "A stochastic approximation method."
+    and
+    Diederik P.Kingma, and Jimmy Ba.
+    "Adam: A Method for Stochastic Optimization."
+    Args:
+        model (model): model to perform stochastic gradient descent
+        optimization or ADAM optimization.
+        cfg (config): configs of hyper-parameters of SGD or ADAM, includes base
+        learning rate,  momentum, weight_decay, dampening, and etc.
+    """
+    if "vit" in cfg.MODEL.BACKBONE.CONV_BODY.lower():
+        layer_decay = cfg.MODEL.BACKBONE.ViT.LAYER_DECAY < 1.0
+        if layer_decay:
+            assigner = LayerDecayValueAssigner(
+                list(
+                    cfg.MODEL.BACKBONE.ViT.LAYER_DECAY ** (cfg.MODEL.BACKBONE.ViT.DEPTH + 1 - i)
+                    for i in range(cfg.MODEL.BACKBONE.ViT.DEPTH + 2)
+                )
+            )
+        else:
+            assigner = None
+
+        if assigner is not None:
+            print("Assigned values = %s" % str(assigner.values))
+
+        skip_weight_decay_list = set(cfg.MODEL.BACKBONE.ViT.NO_WEIGHT_DECAY)
+        print("Skip weight decay list: ", skip_weight_decay_list)
+        weight_decay = cfg.MODEL.BACKBONE.ViT.WEIGHT_DECAY
+        backbone_parameters = get_parameter_groups(
+            model.backbone,
+            weight_decay,
+            skip_weight_decay_list,
+            get_num_layer=assigner.get_layer_id if assigner is not None else None,
+            get_layer_scale=assigner.get_scale if assigner is not None else None,
+        )
+
+        non_bn_parameters = []
+        hit_parameters = []
+        for name, p in model.named_parameters():
+            if "backbone" in name:
+                continue
+            elif "hit_structure" in name:
+                hit_parameters.append(p)
+            else:
+                non_bn_parameters.append(p)
+
+        optim_params = []
+        optim_params = backbone_parameters.copy()
+        optim_params.append(
+            {
+                "params": hit_parameters,
+                "weight_decay": cfg.SOLVER.WEIGHT_DECAY,
+                "lr": cfg.SOLVER.BASE_LR * cfg.SOLVER.IA_LR_FACTOR,
+            }
+        )
+        optim_params.append(
+            {"params": non_bn_parameters, "weight_decay": cfg.SOLVER.WEIGHT_DECAY, "lr": cfg.SOLVER.BASE_LR}
+        )
+
+        # Check all parameters will be passed into optimizer.
+        assert len(list(model.parameters())) == sum(len(p["params"]) for p in backbone_parameters) + len(
+            hit_parameters
+        ) + len(non_bn_parameters), "parameter size does not match: {} + {} + {} != {}".format(
+            sum(len(p["params"]) for p in backbone_parameters),
+            len(hit_parameters),
+            len(non_bn_parameters),
+            len(list(model.parameters())),
+        )
+        print(
+            "vit {}, hit {}, non bn {}".format(
+                sum(len(p["params"]) for p in backbone_parameters),
+                len(hit_parameters),
+                len(non_bn_parameters),
+            )
+        )
+    else:
+        bn_parameters = []
+        non_bn_parameters = []
+        hit_parameters = []
+
+        frozn_bn = cfg.MODEL.BACKBONE.FROZEN_BN
+        # only running_mean and var frozen
+        if frozn_bn:
+            for m in model.backbone.modules():
+                if isinstance(m, nn.BatchNorm3d):
+                    m.eval()
+        for name, param in model.named_parameters():
+            if ("backbone" in name) and ("bn" in name):
+                bn_parameters.append((name, param))
+            elif "hit_structure" in name:
+                hit_parameters.append((name, param))
+            else:
+                non_bn_parameters.append((name, param))
+
+        optim_params = []
+        for name, param in bn_parameters:
+            if not param.requires_grad:
+                continue
+            lr = cfg.SOLVER.BASE_LR
+            weight_decay = cfg.SOLVER.WEIGHT_DECAY_BN
+            optim_params.append({"params": [param], "weight_decay": weight_decay, "lr": lr})
+        for name, param in hit_parameters:
+            if not param.requires_grad:
+                continue
+            lr = cfg.SOLVER.BASE_LR
+            weight_decay = cfg.SOLVER.WEIGHT_DECAY
+            if "bias" in name:
+                lr = cfg.SOLVER.BASE_LR * cfg.SOLVER.BIAS_LR_FACTOR
+                weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
+            lr = lr * cfg.SOLVER.IA_LR_FACTOR
+            optim_params.append({"params": [param], "weight_decay": weight_decay, "lr": lr})
+        for name, param in non_bn_parameters:
+            if not param.requires_grad:
+                continue
+            lr = cfg.SOLVER.BASE_LR
+            weight_decay = cfg.SOLVER.WEIGHT_DECAY
+            if "bias" in name:
+                lr = cfg.SOLVER.BASE_LR * cfg.SOLVER.BIAS_LR_FACTOR
+                weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
+            optim_params.append({"params": [param], "weight_decay": weight_decay, "lr": lr})
+
+        # Check all parameters will be passed into optimizer.
+        assert len(list(model.parameters())) == len(bn_parameters) + len(hit_parameters) + len(
+            non_bn_parameters
+        ), "parameter size does not match: {} + {} + {} != {}".format(
+            len(bn_parameters),
+            len(hit_parameters),
+            len(non_bn_parameters),
+            len(list(model.parameters())),
+        )
+        print(
+            "bn {}, hit {}, non bn {}".format(
+                len(bn_parameters),
+                len(hit_parameters),
+                len(non_bn_parameters),
+            )
+        )
+
+    optimizer = torch.optim.SGD(optim_params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    return optimizer
+
+
+def make_optimizer_1(cfg, model):
     params = []
     bn_param_set = set()
     transformer_param_set = set()
