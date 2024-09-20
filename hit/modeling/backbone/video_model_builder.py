@@ -368,7 +368,8 @@ class SlowFast(nn.Module):
         x = self.s5(x)
         fm = torch.cat([x[0], F.max_pool3d(x[1], kernel_size=(self.alpha, 1, 1), stride=(self.alpha, 1, 1))], dim=1)
         inputs.append(fm)
-        return inputs
+        return x[0], x[1]
+        # return inputs
 
 
 class ResNet(nn.Module):
