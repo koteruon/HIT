@@ -225,7 +225,15 @@ def make_optimizer(cfg, model):
             )
         )
 
-    optimizer = torch.optim.SGD(optim_params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    # optimizer = torch.optim.SGD(optim_params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    optimizer = torch.optim.SGD(
+        optim_params,
+        lr=cfg.SOLVER.BASE_LR,
+        momentum=cfg.SOLVER.MOMENTUM,
+        weight_decay=cfg.SOLVER.WEIGHT_DECAY,
+        dampening=cfg.SOLVER.DAMPENING,
+        nesterov=cfg.SOLVER.NESTEROV,
+    )
     return optimizer
 
 
