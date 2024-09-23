@@ -226,11 +226,6 @@ def make_optimizer(cfg, model):
         )
 
     optimizer = torch.optim.SGD(optim_params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
-    # optimizer = torch.optim.AdamW(
-    #     optim_params,
-    #     lr=cfg.SOLVER.BASE_LR,
-    #     betas=cfg.SOLVER.BETAS,
-    # )
     return optimizer
 
 
