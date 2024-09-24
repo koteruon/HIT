@@ -2,6 +2,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 from hit.layers import FrozenBatchNorm3d
 from hit.modeling.common_blocks import ResNLBlock
 
@@ -336,13 +338,21 @@ class SlowPath(nn.Module):
             dilation=2,
         )
 
+        self.alpha = cfg.MODEL.BACKBONE.SLOWFAST.ALPHA
+
     def forward(self, x, lateral_connection=None):
+        inputs = []
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
         out = self.maxpool1(out)
 
         if lateral_connection:
+            fm = torch.cat(
+                [out, F.max_pool3d(lateral_connection[0], kernel_size=(self.alpha, 1, 1), stride=(self.alpha, 1, 1))],
+                dim=1,
+            )
+            inputs.append(fm)
             out = torch.cat([out, lateral_connection[0]], dim=1)
 
         out = self.res_nl1(out)
