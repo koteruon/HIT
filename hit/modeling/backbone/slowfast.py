@@ -338,8 +338,6 @@ class SlowPath(nn.Module):
             dilation=2,
         )
 
-        self.alpha = cfg.MODEL.BACKBONE.SLOWFAST.ALPHA
-
     def forward(self, x, lateral_connection=None):
         inputs = []
         out = self.conv1(x)
@@ -348,27 +346,25 @@ class SlowPath(nn.Module):
         out = self.maxpool1(out)
 
         if lateral_connection:
-            fm = torch.cat(
-                [out, F.max_pool3d(lateral_connection[0], kernel_size=(self.alpha, 1, 1), stride=(self.alpha, 1, 1))],
-                dim=1,
-            )
-            inputs.append(fm)
             out = torch.cat([out, lateral_connection[0]], dim=1)
 
         out = self.res_nl1(out)
         if lateral_connection:
             out = torch.cat([out, lateral_connection[1]], dim=1)
+            inputs.append(out)
 
         out = self.res_nl2(out)
         if lateral_connection:
             out = torch.cat([out, lateral_connection[2]], dim=1)
+            inputs.append(out)
 
         out = self.res_nl3(out)
         if lateral_connection:
             out = torch.cat([out, lateral_connection[3]], dim=1)
+            inputs.append(out)
 
         out = self.res_nl4(out)
-        return out
+        return out, inputs
 
 
 class SlowFast(nn.Module):
@@ -394,5 +390,7 @@ class SlowFast(nn.Module):
         if cfg.MODEL.BACKBONE.SLOWFAST.FAST.ACTIVE:
             fastout, tconv = self.fast(fast_x)
         if cfg.MODEL.BACKBONE.SLOWFAST.SLOW.ACTIVE:
-            slowout = self.slow(slow_x, tconv)
-        return slowout, fastout
+            slowout, features = self.slow(slow_x, tconv)
+        fm = torch.cat([slowout, F.max_pool3d(fastout, kernel_size=(4, 1, 1), stride=(4, 1, 1))], dim=1)
+        features.append(fm)
+        return slowout, fastout, features

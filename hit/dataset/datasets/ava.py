@@ -232,6 +232,9 @@ class DatasetEngine(data.Dataset):
             video_data, boxes, transform_randoms = self.transforms(video_data, boxes)
             slow_video, fast_video = video_data
 
+            h, w = slow_video.shape[-2:]
+            whwh = torch.tensor([w, h, w, h], dtype=torch.float32)
+
             objects = None
             if self.det_objects is not None:
                 objects = self.get_objects(idx, im_w, im_h)
@@ -247,7 +250,7 @@ class DatasetEngine(data.Dataset):
             extras["movie_id"] = movie_id
             extras["timestamp"] = timestamp
 
-            return slow_video, fast_video, boxes, objects, keypoints, extras, idx
+            return slow_video, fast_video, boxes, objects, keypoints, extras, idx, whwh
 
         return video_data, boxes, idx, movie_id, timestamp
 

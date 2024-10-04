@@ -2,11 +2,11 @@ import math
 
 
 def batch_different_videos(videos, size_divisible=0):
-    '''
+    """
     :param videos: a list of video tensors
     :param size_divisible: output_size(width and height) should be divisble by this param
     :return: batched videos as a single tensor
-    '''
+    """
     assert isinstance(videos, (tuple, list))
     max_size = tuple(max(s) for s in zip(*[clip.shape for clip in videos]))
 
@@ -20,7 +20,7 @@ def batch_different_videos(videos, size_divisible=0):
     batch_shape = (len(videos),) + max_size
     batched_clips = videos[0].new(*batch_shape).zero_()
     for clip, pad_clip in zip(videos, batched_clips):
-        pad_clip[:clip.shape[0], :clip.shape[1], :clip.shape[2], :clip.shape[3]].copy_(clip)
+        pad_clip[: clip.shape[0], : clip.shape[1], : clip.shape[2], : clip.shape[3]].copy_(clip)
 
     return batched_clips
 
@@ -47,4 +47,5 @@ class BatchCollator(object):
         keypoints = transposed_batch[4]
         extras = transposed_batch[5]
         clip_ids = transposed_batch[6]
-        return slow_clips, fast_clips, boxes, objects, keypoints, extras, clip_ids
+        whwh = transposed_batch[7]
+        return slow_clips, fast_clips, boxes, objects, keypoints, extras, clip_ids, whwh

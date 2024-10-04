@@ -37,7 +37,9 @@ def do_train(
     end = time.time()
     losses_reduced = torch.tensor(0.0)
 
-    for iteration, (slow_video, fast_video, boxes, objects, keypoints, extras, _) in enumerate(data_loader, start_iter):
+    for iteration, (slow_video, fast_video, boxes, objects, keypoints, extras, idx, whwh) in enumerate(
+        data_loader, start_iter
+    ):
         data_time = time.time() - end
         iteration = iteration + 1
         arguments["iteration"] = iteration
