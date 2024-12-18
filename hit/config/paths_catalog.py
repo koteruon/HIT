@@ -4,7 +4,7 @@ import os
 
 
 class DatasetCatalog(object):
-    DATA_DIR = "/home/chaoen/yoloNhit_calvin/HIT/data"
+    DATA_DIR = "/home/siplab2/chaoen/yoloNhit_calvin/HIT_B2C/data"
     DATASETS = {
         "table_tennis_train": {
             "video_root": "table_tennis/clips/train",
@@ -65,7 +65,28 @@ class DatasetCatalog(object):
             },
             "object_file": "/home/siplab2/chaoen/data/AVA/boxes/ava_val_det_object_bbox.json",
             "keypoints_file": "/home/siplab2/chaoen/data/AVA/annotations/AVA_val_kpts_detectron.json",
-        }
+        },
+        "jhmdb_train": {
+            "video_root": "jhmdb/videos",
+            "ann_file": "jhmdb/annotations/jhmdb_train_gt_min.json",
+            "box_file": "",
+            "eval_file_paths": {
+                "labelmap_file": "",
+            },
+            "object_file": "jhmdb/annotations/train_object_detection.json",
+            "keypoints_file": "jhmdb/annotations/jhmdb_train_person_bbox_kpts.json",
+        },
+        "jhmdb_val": {
+            "video_root": "jhmdb/videos",
+            "ann_file": "jhmdb/annotations/jhmdb_test_gt_min.json",
+            "box_file": "jhmdb/annotations/jhmdb_test_yowo_det_score.json",
+            "eval_file_paths": {
+                "csv_gt_file": "",
+                "labelmap_file": "",
+            },
+            "object_file": "jhmdb/annotations/test_object_detection.json",
+            "keypoints_file": "jhmdb/annotations/jhmdb_test_person_bbox_kpts.json",
+        },
     }
 
     @staticmethod

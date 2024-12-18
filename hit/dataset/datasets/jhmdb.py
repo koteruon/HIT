@@ -7,10 +7,11 @@ from collections import defaultdict
 import numpy as np
 import torch
 import torch.utils.data as data
+from PIL import Image
+
 from hit.dataset.datasets.iou_calculator import iou
 from hit.structures.bounding_box import BoxList
 from hit.utils.video_decode import av_decode_video
-from PIL import Image
 
 
 # This is used to avoid pytorch issuse #13246
@@ -39,7 +40,7 @@ class NpBoxDict(object):
     def __init__(self, id_to_box_dict, key_list=None, value_types=[]):
         value_fields, value_types = list(zip(*value_types))
         # if "keypoints" not in value_fields:
-        assert 'bbox' in value_fields
+        assert "bbox" in value_fields
 
         if key_list is None:
             key_list = sorted(list(id_to_box_dict.keys()))
@@ -58,20 +59,13 @@ class NpBoxDict(object):
                     value_lists[field].append(box_info[field])
         self.pointer_arr = np.array(pointer_list, dtype=np.int32)
         self.attr_names = np.array(["vfield_" + field for field in value_fields])
-        for field_name, value_type, attr_name in zip(
-            value_fields, value_types, self.attr_names
-        ):
-            setattr(
-                self, attr_name, np.array(value_lists[field_name], dtype=value_type)
-            )
+        for field_name, value_type, attr_name in zip(value_fields, value_types, self.attr_names):
+            setattr(self, attr_name, np.array(value_lists[field_name], dtype=value_type))
 
     def __getitem__(self, idx):
         l_pointer = self.pointer_arr[idx]
         r_pointer = self.pointer_arr[idx + 1]
-        ret_val = [
-            getattr(self, attr_name)[l_pointer:r_pointer]
-            for attr_name in self.attr_names
-        ]
+        ret_val = [getattr(self, attr_name)[l_pointer:r_pointer] for attr_name in self.attr_names]
         return ret_val
 
     def __len__(self):
@@ -93,15 +87,14 @@ class DatasetEngine(data.Dataset):
         object_file=None,
         object_transforms=None,
         keypoints_file=None,
+        is_train=False,
     ):
-        print('loading annotations into memory...')
+        print("loading annotations into memory...")
         tic = time.time()
-        json_dict = json.load(open(ann_file, 'r'))
+        json_dict = json.load(open(ann_file, "r"))
 
-        assert (
-            type(json_dict) == dict
-        ), 'annotation file format {} not supported'.format(type(json_dict))
-        print('Done (t={:0.2f}s)'.format(time.time() - tic))
+        assert type(json_dict) == dict, "annotation file format {} not supported".format(type(json_dict))
+        print("Done (t={:0.2f}s)".format(time.time() - tic))
 
         self.video_root = video_root
         self.transforms = transforms
@@ -116,12 +109,10 @@ class DatasetEngine(data.Dataset):
         if "annotations" in json_dict:
             for ann in json_dict["annotations"]:
                 action_ids = ann["action_ids"]
-                one_hot = np.zeros(21, dtype=np.bool)
+                one_hot = np.zeros(21 + 1, dtype=np.bool)
                 one_hot[action_ids] = True
                 packed_act = one_hot[1:]
-                clip2ann[ann["image_id"]].append(
-                    dict(bbox=ann["bbox"], packed_act=packed_act)
-                )
+                clip2ann[ann["image_id"]].append(dict(bbox=ann["bbox"], packed_act=packed_act))
 
         movies_size = {}
         clips_info = {}
@@ -195,6 +186,23 @@ class DatasetEngine(data.Dataset):
         }
         self.clips_info = NpInfoDict(clips_info, value_type=np.int32)
 
+        ## ground truth
+        clip2ann_gt = defaultdict(list)
+        if "annotations" in json_dict:
+            for ann in json_dict["annotations"]:
+                action_ids = ann["action_ids"]
+                assert len(action_ids) == 1
+                action_id = action_ids.pop()
+                clip2ann_gt[ann["image_id"]].append(action_id)
+
+        movies_action = {}
+        for img in json_dict["images"]:
+            mov = img["movie"]
+            if mov not in movies_action:
+                movies_action[mov] = clip2ann_gt[img["id"]]
+
+        self.movies_action_gt = NpInfoDict(movies_action, value_type=np.int32)
+
     def __getitem__(self, idx):
         _, clip_info = self.clips_info[idx]
 
@@ -212,9 +220,7 @@ class DatasetEngine(data.Dataset):
 
             boxes, packed_act = self.anns[idx]
 
-            boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(
-                -1, 4
-            )  # guard against no boxes
+            boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)  # guard against no boxes
             boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xyxy")
 
             one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
@@ -264,7 +270,7 @@ class DatasetEngine(data.Dataset):
 
     def get_objects(self, idx, im_w, im_h):
         obj_boxes = self.return_null_box(im_w, im_h)
-        if hasattr(self, 'det_objects'):
+        if hasattr(self, "det_objects"):
             boxes, box_score = self.det_objects[idx]
 
             if len(box_score) == 0:
@@ -319,17 +325,17 @@ class DatasetEngine(data.Dataset):
     def load_box_file(self, box_file, score_thresh=0.0):
         import json
 
-        print('Loading box file into memory...')
+        print("Loading box file into memory...")
         tic = time.time()
         with open(box_file, "r") as f:
             box_results = json.load(f)
-        print('Done (t={:0.2f}s)'.format(time.time() - tic))
+        print("Done (t={:0.2f}s)".format(time.time() - tic))
 
-        boxImgIds = [box['image_id'] for box in box_results]
+        boxImgIds = [box["image_id"] for box in box_results]
 
         imgToBoxes = defaultdict(list)
         for img_id, box in zip(boxImgIds, box_results):
-            if box['score'] >= score_thresh:
+            if box["score"] >= score_thresh:
                 imgToBoxes[img_id].append(box)
         return imgToBoxes
 
@@ -348,16 +354,14 @@ class DatasetEngine(data.Dataset):
             if (cur_t - timestamp) > right_span:
                 break
             ## JHMDB
-            # video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
+            video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
             ## AVA
-            video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
+            # video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
             try:
                 with Image.open(video_path) as img:
-                    right_frames.append(img.convert('RGB'))
+                    right_frames.append(img.convert("RGB"))
             except BaseException as e:
-                raise RuntimeError(
-                    'Caught "{}" when loading {}'.format(str(e), video_path)
-                )
+                raise RuntimeError('Caught "{}" when loading {}'.format(str(e), video_path))
             cur_t += 1
 
         # load left
@@ -367,17 +371,15 @@ class DatasetEngine(data.Dataset):
             if (timestamp - cur_t) > left_span:
                 break
             ## JHMDB
-            # video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
+            video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
             ## AVA
-            video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
+            # video_path = os.path.join(video_folder, "{}.jpg".format(str(cur_t)))
             # frames = cv2_decode_video(video_path)
             try:
                 with Image.open(video_path) as img:
-                    left_frames.append(img.convert('RGB'))
+                    left_frames.append(img.convert("RGB"))
             except BaseException as e:
-                raise RuntimeError(
-                    'Caught "{}" when loading {}'.format(str(e), video_path)
-                )
+                raise RuntimeError('Caught "{}" when loading {}'.format(str(e), video_path))
             cur_t -= 1
 
         frames = left_frames + right_frames
@@ -389,11 +391,9 @@ class DatasetEngine(data.Dataset):
         return len(self.clips_info)
 
     def __repr__(self):
-        fmt_str = 'Dataset ' + self.__class__.__name__ + '\n'
-        fmt_str += '    Number of datapoints: {}\n'.format(self.__len__())
-        fmt_str += '    Video Root Location: {}\n'.format(self.video_root)
-        tmp = '    Transforms (if any): '
-        fmt_str += '{0}{1}\n'.format(
-            tmp, self.transforms.__repr__().replace('\n', '\n' + ' ' * len(tmp))
-        )
+        fmt_str = "Dataset " + self.__class__.__name__ + "\n"
+        fmt_str += "    Number of datapoints: {}\n".format(self.__len__())
+        fmt_str += "    Video Root Location: {}\n".format(self.video_root)
+        tmp = "    Transforms (if any): "
+        fmt_str += "{0}{1}\n".format(tmp, self.transforms.__repr__().replace("\n", "\n" + " " * len(tmp)))
         return fmt_str
