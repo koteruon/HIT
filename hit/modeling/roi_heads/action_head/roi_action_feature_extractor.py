@@ -6,6 +6,8 @@ from hit.modeling import registry
 from hit.modeling.poolers import make_3d_pooler
 from hit.modeling.roi_heads.action_head.hit_structure import make_hit_structure
 from hit.modeling.roi_heads.action_head.pose_transformer import PoseTransformer
+
+# from hit.modeling.roi_heads.action_head.pose_transformerV2 import PoseTransformerV2
 from hit.modeling.utils import cat, pad_sequence, prepare_pooled_feature
 from hit.structures.bounding_box import BoxList
 from hit.utils.IA_helper import has_hand, has_object
@@ -43,6 +45,7 @@ class MLPFeatureExtractor(nn.Module):
             nn.init.constant_(l.bias, 0)
         self.dim_out = representation_size
         self.pose_transformer = PoseTransformer()
+        # self.pose_transformer = PoseTransformerV2()
 
     def roi_pooling(self, slow_features, fast_features, proposals):
         if slow_features is not None:

@@ -139,7 +139,7 @@ class DatasetEngine(data.Dataset):
             for ann in self.json_dict["annotations"]:
                 action_ids = ann["action_ids"]
                 #### 如果要改動作 記得要改。
-                one_hot = np.zeros(5, dtype=np.bool)
+                one_hot = np.zeros(5, dtype=np.bool_)
                 one_hot[action_ids] = True
                 # packed_act = np.packbits(one_hot[1:])
                 packed_act = one_hot[1:]

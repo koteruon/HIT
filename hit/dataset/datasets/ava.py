@@ -109,7 +109,7 @@ class DatasetEngine(data.Dataset):
         if "annotations" in json_dict:
             for ann in json_dict["annotations"]:
                 action_ids = ann["action_ids"]
-                one_hot = np.zeros(81, dtype=np.bool)
+                one_hot = np.zeros(81, dtype=np.bool_)
                 one_hot[action_ids] = True
                 packed_act = one_hot[1:]
                 clip2ann[ann["image_id"]].append(dict(bbox=ann["bbox"], packed_act=packed_act))
