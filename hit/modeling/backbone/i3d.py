@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import torch.nn as nn
+
 from hit.layers import FrozenBatchNorm3d
 from hit.modeling.common_blocks import ResNLBlock
 
@@ -70,7 +71,7 @@ class I3D(nn.Module):
 
         dim_inner = 64
         conv_dims = [64, 256, 512, 1024, 2048]
-        self.dim_out = 2304
+        self.dim_out = 2048  # 2304
         n1, n2, n3, n4 = block_config
         layer_mod = 2
         conv3_nl_mod = layer_mod
