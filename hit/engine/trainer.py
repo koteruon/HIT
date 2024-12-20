@@ -37,7 +37,7 @@ def do_train(
     end = time.time()
     losses_reduced = torch.tensor(0.0)
 
-    for iteration, (slow_video, fast_video, boxes, objects, keypoints, extras, idx, whwh) in enumerate(
+    for iteration, (slow_video, fast_video, full_fast_clips, boxes, objects, keypoints, extras, idx, whwh) in enumerate(
         data_loader, start_iter
     ):
         data_time = time.time() - end
@@ -46,6 +46,7 @@ def do_train(
 
         slow_video = slow_video.to(device)
         fast_video = fast_video.to(device)
+        full_fast_clips = full_fast_clips.to(device)
         boxes = [box.to(device) for box in boxes]
         keypoints = (
             None if all(keypoint is None for keypoint in keypoints) else [keypoint.to(device) for keypoint in keypoints]
@@ -65,7 +66,7 @@ def do_train(
             mem_extras["cur_loss"] = losses_reduced.item()
 
         loss_dict, weight_dict, metric_dict, pooled_feature = model(
-            slow_video, fast_video, boxes, objects, keypoints, mem_extras
+            slow_video, fast_video, full_fast_clips, boxes, whwh, objects, keypoints, mem_extras
         )
 
         losses = sum([loss_dict[k] * weight_dict[k] for k in loss_dict])

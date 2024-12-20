@@ -1,5 +1,7 @@
 import math
 
+import torch
+
 
 def batch_different_videos(videos, size_divisible=0):
     """
@@ -40,12 +42,13 @@ class BatchCollator(object):
         transposed_batch = list(zip(*batch))
         slow_clips = batch_different_videos(transposed_batch[0], self.size_divisible)
         fast_clips = batch_different_videos(transposed_batch[1], self.size_divisible)
-        boxes = transposed_batch[2]
+        full_fast_clips = batch_different_videos(transposed_batch[2], self.size_divisible)
+        boxes = transposed_batch[3]
         # for b in boxes:
         #     b.extra_fields['labels'] = b.extra_fields['labels'][:, :24]
-        objects = transposed_batch[3]
-        keypoints = transposed_batch[4]
-        extras = transposed_batch[5]
-        clip_ids = transposed_batch[6]
-        whwh = transposed_batch[7]
-        return slow_clips, fast_clips, boxes, objects, keypoints, extras, clip_ids, whwh
+        objects = transposed_batch[4]
+        keypoints = transposed_batch[5]
+        extras = transposed_batch[6]
+        clip_ids = transposed_batch[7]
+        whwh = torch.stack(transposed_batch[8])
+        return slow_clips, fast_clips, full_fast_clips, boxes, objects, keypoints, extras, clip_ids, whwh

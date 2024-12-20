@@ -244,15 +244,18 @@ class DatasetEngine(data.Dataset):
 
         if self.transforms is not None:
             video_data, boxes, transform_randoms = self.transforms(video_data, boxes)
-            slow_video, fast_video = video_data
+            slow_video, fast_video, full_fast_video = video_data
+
+            h, w = slow_video.shape[-2:]
+            whwh = torch.tensor([w, h, w, h], dtype=torch.float32)
 
             objects = None
             if self.det_objects is not None:
                 objects = self.get_objects(idx, im_w, im_h)
             if self.object_transforms is not None:
                 objects = self.object_transforms(objects, boxes, transform_randoms)
-            keypoints = None
 
+            keypoints = None
             if self.det_keypoints is not None:
                 keypoints = self.get_keypoints(idx, im_w, im_h, orig_boxes)
             if self.object_transforms is not None:
@@ -261,7 +264,7 @@ class DatasetEngine(data.Dataset):
             extras["movie_id"] = movie_id
             extras["timestamp"] = timestamp
 
-            return slow_video, fast_video, boxes, objects, keypoints, extras, idx
+            return (slow_video, fast_video, full_fast_video, boxes, objects, keypoints, extras, idx, whwh)
 
         return video_data, boxes, idx, movie_id, timestamp
 
@@ -335,7 +338,7 @@ class DatasetEngine(data.Dataset):
 
         imgToBoxes = defaultdict(list)
         for img_id, box in zip(boxImgIds, box_results):
-            if box["score"] >= score_thresh:
+            if float(box["score"]) >= score_thresh:
                 imgToBoxes[img_id].append(box)
         return imgToBoxes
 

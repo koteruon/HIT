@@ -88,7 +88,8 @@ class ActionDetector(nn.Module):
 
                 self.lateral_convs.append(layers)
         else:
-            in_channels = [256 + 64, 512 + 128, 1024 + 256, 2048 + 256]
+            # in_channels = [256 + 64, 512 + 128, 1024 + 256, 2048 + 256]
+            in_channels = [256 + 32, 512 + 64, 1024 + 128, 2048 + 256]
             self.lateral_convs = nn.ModuleList()
             for idx, in_channel in enumerate(in_channels):
                 lateral_conv = nn.Conv3d(in_channel, out_channel, kernel_size=1)
@@ -101,12 +102,25 @@ class ActionDetector(nn.Module):
             mapped_features.append(self.lateral_convs[i](feature))
         return mapped_features
 
-    def forward(self, slow_video, fast_video, boxes, objects=None, keypoints=None, extras={}, part_forward=-1):
+    def forward(
+        self,
+        slow_video,
+        fast_video,
+        full_fast_clips,
+        boxes,
+        whwh,
+        objects=None,
+        keypoints=None,
+        extras={},
+        part_forward=-1,
+    ):
 
         if part_forward == 1:
-            slow_features = fast_features, features = None
+            slow_features = fast_features = None
+            _, _, features = self.backbone(slow_video, full_fast_clips)
         else:
-            slow_features, fast_features, features = self.backbone(slow_video, fast_video)
+            # slow_features, fast_features, features = self.backbone(slow_video, fast_video)
+            slow_features, fast_features, features = self.backbone(slow_video, full_fast_clips)
         mapped_features = self.space_forward(features)
 
         result, detector_losses, loss_weight, detector_metrics = self.roi_heads(

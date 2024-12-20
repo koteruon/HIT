@@ -1,0 +1,80 @@
+DATA:
+  INPUT_CHANNEL_NUM: [3, 3]
+MODEL:
+  WEIGHT: "data/models/pretrained_models/AVAV2_PYSLOWFAST_R50_8x8_filtered.pth"
+  BACKBONE:
+    CONV_BODY: "PySlowfast-R101"
+    FROZEN_BN: True
+    RESNET:
+      DEPTH: 101
+      NUM_BLOCK_TEMP_KERNEL: [ [ 3, 3 ], [ 4, 4 ], [ 6, 6 ], [ 3, 3 ] ]
+      SPATIAL_DILATIONS: [ [ 1, 1 ], [ 1, 1 ], [ 1, 1 ], [ 1, 1 ] ]
+      SPATIAL_STRIDES: [ [ 1, 1 ], [ 2, 2 ], [ 2, 2 ], [ 2, 2 ] ]
+    SLOWFAST:
+      ALPHA: 4
+      BETA_INV: 8
+      FUSION_CONV_CHANNEL_RATIO: 2
+      FUSION_KERNEL_SZ: 5
+    NONLOCAL:
+      LOCATION: [[[], []], [[], []], [[6, 13, 20], []], [[], []]]
+      GROUP: [ [ 1, 1 ], [ 1, 1 ], [ 1, 1 ], [ 1, 1 ] ]
+      INSTANTIATION: dot_product
+      POOL: [ [ [ 2, 2, 2 ], [ 2, 2, 2 ] ], [ [ 2, 2, 2 ], [ 2, 2, 2 ] ], [ [ 2, 2, 2 ], [ 2, 2, 2 ] ], [ [ 2, 2, ], [ 2, 2, 2 ] ] ]
+  ROI_ACTION_HEAD:
+    FEATURE_EXTRACTOR: "2MLPFeatureExtractor"
+    POOLER_TYPE: "align3d"
+    MEAN_BEFORE_POOLER: True
+    POOLER_RESOLUTION: 7
+    POOLER_SCALE: 0.0625
+    POOLER_SAMPLING_RATIO: 0
+    NUM_CLASSES: 21
+    PROPOSAL_PER_CLIP: 10
+    DROPOUT_RATE: 0.2
+  HIT_STRUCTURE:
+    ACTIVE: True
+    STRUCTURE: "hitnet"
+    DROPOUT: 0.2
+    FUSION: "add"
+    TEMPORAL_POSITION: True
+    USE_ZERO_INIT_CONV: True
+    LAYER_NORM: True
+    MAX_PERSON: 25
+    MAX_HAND: 10
+    MAX_OBJECT: 5
+    MAX_PER_SEC: 5
+    DIM_INNER: 1024
+    DIM_OUT: 2304
+    I_BLOCK_LIST: [ "P", "O", "H", "M", "P", "O", "H", "M", ]
+  STM:
+    ACTION_CLASSES: 21
+INPUT:
+  FRAME_NUM: 32
+  FRAME_SAMPLE_RATE: 1
+  TAU: 4
+  ALPHA: 1
+  SLOW_JITTER: True
+  COLOR_JITTER: True
+DATASETS:
+  TRAIN: ("jhmdb_train",)
+  TEST: ("jhmdb_val",)
+DATALOADER:
+  NUM_WORKERS: 8
+  SIZE_DIVISIBILITY: 16
+SOLVER:
+  BASE_LR: 0.0002
+  WARMUP_FACTOR: 0.25
+  BIAS_LR_FACTOR: 2
+  IA_LR_FACTOR: 10.0
+  WEIGHT_DECAY: 1e-7
+  STEPS: (20000, 25000)
+  WARMUP_ITERS: 700
+  MAX_ITER: 7000
+  CHECKPOINT_PERIOD: 7000
+  EVAL_PERIOD: 25000
+  VIDEOS_PER_BATCH: 8
+  OPTIMIZING_METHOD: 'sgd'
+TEST:
+  BOX_THRESH: 0.
+  ACTION_THRESH: 0.
+  VIDEOS_PER_BATCH: 8
+OUTPUT_DIR: "data/output/hitnet_pysf_101_20241220"

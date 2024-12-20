@@ -189,7 +189,7 @@ class SlowFastCrop(object):
         fast_start = (fast_stride - 1) // 2
         fast_clip = clip[:, fast_start::fast_stride, :, :]
 
-        return [slow_clip, fast_clip], target, transform_randoms
+        return [slow_clip, fast_clip, clip], target, transform_randoms
 
 
 class Identity(object):

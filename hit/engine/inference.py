@@ -5,10 +5,11 @@ import os
 import time
 
 import torch
+from tqdm import tqdm
+
 from hit.dataset.datasets.evaluation import evaluate
 from hit.structures.memory_pool import MemoryPool
 from hit.utils.comm import all_gather, gather, get_rank, get_world_size, is_main_process, synchronize
-from tqdm import tqdm
 
 
 def compute_on_dataset_1stage(model, data_loader, device):
@@ -21,15 +22,16 @@ def compute_on_dataset_1stage(model, data_loader, device):
         rank = get_rank()
         extra_args = dict(desc="rank {}".format(rank))
     for batch in tqdm(data_loader, **extra_args):
-        slow_clips, fast_clips, boxes, objects, keypoints, extras, video_ids = batch
+        slow_clips, fast_clips, full_fast_clips, boxes, objects, keypoints, extras, video_ids, whwh = batch
         slow_clips = slow_clips.to(device)
         fast_clips = fast_clips.to(device)
+        full_fast_clips = full_fast_clips.to(device)
         boxes = [box.to(device) for box in boxes]
         objects = [None if (box is None) else box.to(device) for box in objects]
         keypoints = [None if (box is None) else box.to(device) for box in keypoints]
 
         with torch.no_grad():
-            output = model(slow_clips, fast_clips, boxes, objects, keypoints, extras)
+            output = model(slow_clips, fast_clips, full_fast_clips, boxes, whwh, objects, keypoints, extras)
             output = [o.to(cpu_device) for o in output]
         results_dict.update({video_id: result for video_id, result in zip(video_ids, output)})
 
@@ -55,15 +57,16 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
     start_time = time.time()
 
     for i, batch in enumerate(tqdm(data_loader, **extra_args)):
-        slow_clips, fast_clips, boxes, objects, keypoints, extras, video_ids = batch
+        slow_clips, fast_clips, full_fast_clips, boxes, objects, keypoints, extras, video_ids, whwh = batch
         slow_clips = slow_clips.to(device)
         fast_clips = fast_clips.to(device)
+        full_fast_clips = full_fast_clips.to(device)
         boxes = [box.to(device) for box in boxes]
         objects = [None if (box is None) else box.to(device) for box in objects]
         movie_ids = [e["movie_id"] for e in extras]
         timestamps = [e["timestamp"] for e in extras]
         with torch.no_grad():
-            feature = model(slow_clips, fast_clips, boxes, objects, keypoints, part_forward=0)
+            feature = model(slow_clips, fast_clips, full_fast_clips, boxes, whwh, objects, keypoints, part_forward=0)
             person_feature = [ft.to(cpu_device) for ft in feature[0]]
             object_feature = [ft.to(cpu_device) for ft in feature[1]]
             hand_feature = [ft.to(cpu_device) for ft in feature[2]]
@@ -125,7 +128,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             current_feat_pose=current_feat_pose,
         )
         with torch.no_grad():
-            output = model(None, None, None, None, extras=extras, part_forward=1)
+            output = model(slow_clips, None, full_fast_clips, None, whwh, None, extras=extras, part_forward=1)
             output = [o.to(cpu_device) for o in output]
             det_scores = [d.to(cpu_device) for d in det_scores]
             for i, o in enumerate(output):

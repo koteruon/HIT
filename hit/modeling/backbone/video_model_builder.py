@@ -11,7 +11,8 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 
 from .sfmodels import resnet_helper, stem_helper  # noqa
-from .vit_utils import Block, PatchEmbed, get_sinusoid_encoding_table, interpolate_pos_embed_online
+from .vit_utils import (Block, PatchEmbed, get_sinusoid_encoding_table,
+                        interpolate_pos_embed_online)
 
 try:
     from fairscale.nn.checkpoint import checkpoint_wrapper
@@ -366,9 +367,11 @@ class SlowFast(nn.Module):
         inputs.append(fm)
         x = self.s4_fuse(x)
         x = self.s5(x)
-        fm = torch.cat([x[0], F.max_pool3d(x[1], kernel_size=(self.alpha, 1, 1), stride=(self.alpha, 1, 1))], dim=1)
+        slow_features = x[0]
+        fast_features = F.max_pool3d(x[1], kernel_size=(self.alpha, 1, 1), stride=(self.alpha, 1, 1))
+        fm = torch.cat([slow_features, fast_features], dim=1)
         inputs.append(fm)
-        return x[0], x[1]
+        return slow_features, fast_features, inputs
         # return inputs
 
 
