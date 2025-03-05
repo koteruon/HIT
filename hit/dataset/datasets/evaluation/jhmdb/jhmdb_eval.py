@@ -19,15 +19,17 @@ def save_jhmdb_results(dataset, predictions, output_folder, logger):
         file_path = f.name
         if output_folder:
             file_path = os.path.join(output_folder, "result_jhmdb.csv")
-            top1_action_file_path = os.path.join(output_folder, "result_top1_action_jhmdb.csv")
-            top1_action_by_video_file_path = os.path.join(output_folder, "result_top1_action_by_video_jhmdb.csv")
+            top1_action_by_frame_confusion_matrix_file_path = os.path.join(
+                output_folder, "result_top1_action_by_frame_confusion_matrix_jhmdb.csv"
+            )
             top1_action_by_video_confusion_matrix_file_path = os.path.join(
                 output_folder, "result_top1_action_by_video_confusion_matrix_jhmdb.csv"
             )
         write_csv(ava_results, file_path, logger)
-        write_top1_action_csv(ava_results, top1_action_file_path, logger)
-        write_top1_action_by_action_csv(ava_results, top1_action_by_video_file_path, logger)
-        write_top1_action_by_action_confusion_matrix_csv(
+        write_top1_action_by_frame_confusion_matrix_csv(
+            ava_results, top1_action_by_frame_confusion_matrix_file_path, logger, dataset
+        )
+        write_top1_action_by_video_confusion_matrix_csv(
             ava_results, top1_action_by_video_confusion_matrix_file_path, logger, dataset
         )
         write_files(ava_results, output_folder, logger)
@@ -119,9 +121,16 @@ def write_csv(ava_results, csv_result_file, logger):
     print_time(logger, "write file " + csv_result_file, start)
 
 
-def write_top1_action_csv(ava_results, csv_result_file, logger):
+def write_top1_action_by_frame_confusion_matrix_csv(ava_results, csv_result_file, logger, dataset):
     print(csv_result_file)
     dict_data = testlist_to_dict(csv_result_file.split("/")[0] + "/jhmdb/annotations")
+
+    # 提取資料集中的 distinct 類別數量
+    num_classes = len(
+        np.unique(dataset.movies_action_gt.val_arr.flatten())
+    )  # 類別數，假設 val_arr 存儲所有 ground truth 的 action_id
+    confusion_matrix = np.zeros((num_classes, num_classes), dtype=int)  # 初始化混淆矩陣
+
     start = time.time()
     with open(csv_result_file, "w") as csv_file:
         spamwriter = csv.writer(csv_file, delimiter=",")
@@ -149,53 +158,57 @@ def write_top1_action_csv(ava_results, csv_result_file, logger):
             # 寫入最高分的行
             spamwriter.writerow([movie_name_with_dir, timestamp] + box_str + [action_id, score_str])
 
+            # 取得 ground truth action_id
+            ground_truth_action_id = dataset.movies_action_gt.val_arr[dataset.movies_action_gt.convert_key(movie_name)]
+
+            # 更新混淆矩陣
+            confusion_matrix[ground_truth_action_id - 1, action_id - 1] += 1
+
+        # 換行
+        spamwriter.writerow([])
+
+        # 計算 Precision 和 Recall
+        precision = np.zeros(num_classes)
+        recall = np.zeros(num_classes)
+        f1_score = np.zeros(num_classes)
+
+        for i in range(num_classes):
+            TP = confusion_matrix[i, i]
+            FP = confusion_matrix[:, i].sum() - TP
+            FN = confusion_matrix[i, :].sum() - TP
+            TN = confusion_matrix.sum() - (TP + FP + FN)
+
+            # Precision, Recall, F1-Score
+            precision[i] = TP / (TP + FP) if (TP + FP) > 0 else 0
+            recall[i] = TP / (TP + FN) if (TP + FN) > 0 else 0
+            f1_score[i] = (
+                2 * (precision[i] * recall[i]) / (precision[i] + recall[i]) if (precision[i] + recall[i]) > 0 else 0
+            )
+
+        # 計算所有類別的平均 Precision, Recall, F1-Score
+        avg_precision = np.mean(precision)
+        avg_recall = np.mean(recall)
+        avg_f1_score = np.mean(f1_score)
+
+        for i in range(num_classes):
+            row = list(confusion_matrix[i])
+            row_with_padding = [f"{val:>3}" for val in row]
+            spamwriter.writerow(row_with_padding)
+
+        # Precision, Recall, F1-Score 寫入
+        spamwriter.writerow([])  # 空行分隔混淆矩陣和指標
+        spamwriter.writerow(["Class  ", "Precision", "Recall   ", "F1-Score "])
+        for i in range(num_classes):
+            spamwriter.writerow([f"{i+1:>7}", f"{precision[i]:9.3f}", f"{recall[i]:9.3f}", f"{f1_score[i]:9.3f}"])
+
+        # 寫入平均 Precision, Recall, F1-Score
+        spamwriter.writerow([])  # 空行分隔各類別和總體平均
+        spamwriter.writerow(["Average", f"{avg_precision:9.3f}", f"{avg_recall:9.3f}", f"{avg_f1_score:9.3f}"])
+
     print_time(logger, "write file " + csv_result_file, start)
 
 
-def write_top1_action_by_action_csv(ava_results, csv_result_file, logger):
-    print(csv_result_file)
-    dict_data = testlist_to_dict(csv_result_file.split("/")[0] + "/jhmdb/annotations")
-    start = time.time()
-
-    # 用來儲存每個 movie_name 的最高分資料
-    top_results = {}
-
-    for clip_key in ava_results:
-        movie_name, timestamp = decode_image_key(clip_key)
-        cur_result = ava_results[clip_key]
-        boxes = cur_result["boxes"]
-        scores = cur_result["scores"]
-        action_ids = cur_result["action_ids"]
-        assert boxes.shape[0] == scores.shape[0] == action_ids.shape[0]
-
-        # 找到當前 clip_key 中的最高分數及對應索引
-        max_score_index = scores.argmax()
-        max_score = scores[max_score_index]
-        box = boxes[max_score_index]
-        action_id = action_ids[max_score_index]
-
-        # 如果該 movie_name 還沒有記錄，或者當前分數更高，則更新
-        if movie_name not in top_results or max_score > top_results[movie_name]["score"]:
-            top_results[movie_name] = {
-                "timestamp": timestamp,
-                "box": box,
-                "score": max_score,
-                "action_id": action_id,
-            }
-
-    # 寫入結果到 CSV 文件
-    with open(csv_result_file, "w") as csv_file:
-        spamwriter = csv.writer(csv_file, delimiter=",")
-        for movie_name, result in top_results.items():
-            box_str = ["{:.5f}".format(cord) for cord in result["box"]]
-            score_str = "{:.5f}".format(result["score"])
-            movie_name_with_dir = dict_data[movie_name] + "/" + movie_name
-            spamwriter.writerow([movie_name_with_dir, result["timestamp"]] + box_str + [result["action_id"], score_str])
-
-    print_time(logger, "write file " + csv_result_file, start)
-
-
-def write_top1_action_by_action_confusion_matrix_csv(ava_results, csv_result_file, logger, dataset):
+def write_top1_action_by_video_confusion_matrix_csv(ava_results, csv_result_file, logger, dataset):
     # 提取資料集中的 distinct 類別數量
     num_classes = len(
         np.unique(dataset.movies_action_gt.val_arr.flatten())

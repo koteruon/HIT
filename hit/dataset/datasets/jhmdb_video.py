@@ -123,7 +123,8 @@ class DatasetEngine(data.Dataset):
             mov = img["movie"]
             if mov not in movies_size:
                 movies_size[mov] = [img["width"], img["height"]]
-            clips_info[img["id"]] = [mov, img["timestamp"]]
+            if int(img["timestamp"]) == 20:
+                clips_info[img["id"]] = [mov, img["timestamp"]]
         self.movie_info = NpInfoDict(movies_size, value_type=np.int32)
         clip_ids = sorted(list(clips_info.keys()))
 
