@@ -6,7 +6,6 @@ from hit.modeling import registry
 from hit.modeling.poolers import make_3d_pooler
 from hit.modeling.roi_heads.action_head.hit_structure import make_hit_structure
 from hit.modeling.roi_heads.action_head.pose_transformer import PoseTransformer
-
 # from hit.modeling.roi_heads.action_head.pose_transformerV2 import PoseTransformerV2
 from hit.modeling.utils import cat, pad_sequence, prepare_pooled_feature
 from hit.structures.bounding_box import BoxList
@@ -128,18 +127,32 @@ class MLPFeatureExtractor(nn.Module):
 
             # Pose  start
             if keypoints:
-                pose_data = torch.cat(
-                    [k.extra_fields["keypoints"].to(k.bbox.device) for k in keypoints if "keypoints" in k.extra_fields],
-                    dim=0,
-                ).unsqueeze(1)
+                if "video_keypoints" in k.extra_fields:
+                    pose_data = torch.cat(
+                        [
+                            k.extra_fields["video_keypoints"].to(k.bbox.device)
+                            for k in keypoints
+                            if "video_keypoints" in k.extra_fields
+                        ],
+                        dim=0,
+                    )
+                else:
+                    pose_data = torch.cat(
+                        [
+                            k.extra_fields["keypoints"].to(k.bbox.device)
+                            for k in keypoints
+                            if "keypoints" in k.extra_fields
+                        ],
+                        dim=0,
+                    ).unsqueeze(1)
             else:
                 pose_data = torch.empty(0).unsqueeze(1)
 
+            assert pose_data.shape[0] == person_pooled.shape[0]
             if pose_data.shape[0] == person_pooled.shape[0]:
                 self.pose_transformer = self.pose_transformer.to(keypoints[0].bbox.device)
                 pose_out = self.pose_transformer(pose_data)
                 pose_out = pose_out.view(-1, self.pose_out).unsqueeze(2).unsqueeze(2).unsqueeze(2)
-
             else:
                 pose_out = None
             # Pose end

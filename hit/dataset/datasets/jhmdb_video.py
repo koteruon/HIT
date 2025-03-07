@@ -37,7 +37,11 @@ class NpInfoDict(object):
 
 # This is used to avoid pytorch issuse #13246
 class NpBoxDict(object):
-    def __init__(self, id_to_box_dict, key_list=None, value_types=[]):
+    def generate_range(self, num):
+        base = num // 100 * 100  # 取得數字所屬的百位區間
+        return list(range(base + 1, base + 41))  # 產生從 base+1 到 base+40 的數列
+
+    def __init__(self, id_to_box_dict, key_list=None, value_types=[], clip2ann=None):
         value_fields, value_types = list(zip(*value_types))
         # if "keypoints" not in value_fields:
         assert "bbox" in value_fields
@@ -46,26 +50,58 @@ class NpBoxDict(object):
             key_list = sorted(list(id_to_box_dict.keys()))
         self.length = len(key_list)
 
+        self.no_box_infos_video_keypoints = {}
         pointer_list = []
         value_lists = {field: [] for field in value_fields}
         cur = 0
         pointer_list.append(cur)
         for k in key_list:
+            if "video_keypoints" in value_fields:
+                video_id_to_box_dict = defaultdict(list, id_to_box_dict)
+                video_keypoints_list = []
+                video_key_list = self.generate_range(k)
+                for video_k in video_key_list:
+                    video_value_lists = {
+                        field: [] for field in value_fields + ("orig_boxes",) if field != "video_keypoints"
+                    }
+                    box_infos = video_id_to_box_dict[video_k]
+                    for box_info in box_infos:
+                        for field in video_value_lists:
+                            if field != "orig_boxes":
+                                video_value_lists[field].append(box_info[field])
+                    if len(clip2ann[video_k]) > 0:
+                        video_value_lists["orig_boxes"] = clip2ann[video_k][0]["bbox"]
+                    video_keypoints_list.append(video_value_lists)
+
             box_infos = id_to_box_dict[k]
             cur += len(box_infos)
             pointer_list.append(cur)
             for box_info in box_infos:
                 for field in value_fields:
-                    value_lists[field].append(box_info[field])
+                    if field != "video_keypoints":
+                        value_lists[field].append(box_info[field])
+                    else:
+                        value_lists["video_keypoints"].append(video_keypoints_list)
+
+            if "video_keypoints" in value_fields:
+                if len(box_infos) == 0:
+                    self.no_box_infos_video_keypoints[cur] = [video_keypoints_list]
+
         self.pointer_arr = np.array(pointer_list, dtype=np.int32)
         self.attr_names = np.array(["vfield_" + field for field in value_fields])
         for field_name, value_type, attr_name in zip(value_fields, value_types, self.attr_names):
-            setattr(self, attr_name, np.array(value_lists[field_name], dtype=value_type))
+            if field_name == "video_keypoints":
+                setattr(self, attr_name, value_lists[field_name])
+            else:
+                setattr(self, attr_name, np.array(value_lists[field_name], dtype=value_type))
 
     def __getitem__(self, idx):
         l_pointer = self.pointer_arr[idx]
         r_pointer = self.pointer_arr[idx + 1]
         ret_val = [getattr(self, attr_name)[l_pointer:r_pointer] for attr_name in self.attr_names]
+        if "vfield_video_keypoints" in self.attr_names:
+            if l_pointer == r_pointer and l_pointer in self.no_box_infos_video_keypoints:
+                ret_val[0] = self.no_box_infos_video_keypoints[l_pointer]
         return ret_val
 
     def __len__(self):
@@ -73,6 +109,16 @@ class NpBoxDict(object):
 
 
 class DatasetEngine(data.Dataset):
+    def find_best_clip_ids(self, clips_info):
+        clips_info = np.array(clips_info)
+        # 計算 group_id
+        group_ids = clips_info // 10000
+        # 找出所有唯一的 group_id
+        unique_groups = np.unique(group_ids)
+        # 計算每個 group 的中位數，並存成列表
+        medians = [int(np.median(clips_info[group_ids == group])) for group in unique_groups]
+        return medians
+
     def __init__(
         self,
         video_root,
@@ -123,10 +169,10 @@ class DatasetEngine(data.Dataset):
             mov = img["movie"]
             if mov not in movies_size:
                 movies_size[mov] = [img["width"], img["height"]]
-            if int(img["timestamp"]) == 20:
-                clips_info[img["id"]] = [mov, img["timestamp"]]
+            clips_info[img["id"]] = [mov, img["timestamp"]]
         self.movie_info = NpInfoDict(movies_size, value_type=np.int32)
         clip_ids = sorted(list(clips_info.keys()))
+        clip_ids = self.find_best_clip_ids(clip_ids)
 
         # 移除沒有標註的image_id
         if remove_clips_without_annotations:
@@ -165,10 +211,12 @@ class DatasetEngine(data.Dataset):
                 imgToBoxes,
                 clip_ids,
                 value_types=[
+                    ("video_keypoints", None),
                     ("keypoints", np.float32),
                     ("bbox", np.float32),
                     ("score", np.float32),
                 ],
+                clip2ann=clip2ann,
             )
         else:
             self.det_keypoints = None
@@ -292,7 +340,36 @@ class DatasetEngine(data.Dataset):
 
     def get_keypoints(self, idx, im_w, im_h, orig_boxes):
         kpts_boxes = self.return_null_box(im_w, im_h)
-        keypoints, boxes, box_score = self.det_keypoints[idx]
+        video_keypoints_lists, keypoints, boxes, box_score = self.det_keypoints[idx]
+
+        all_video_keypoints = []
+        assert len(video_keypoints_lists) != 0
+        for video_keypoints_list in video_keypoints_lists:
+            all_video_keypoint = []
+            for video_k in video_keypoints_list:
+                video_keypoints = video_k["keypoints"]
+                video_boxes = video_k["bbox"]
+                video_box_score = video_k["score"]
+                video_orig_boxes = video_k["orig_boxes"]
+                video_orig_boxes_tensor = torch.as_tensor(video_orig_boxes, dtype=torch.float32).reshape(
+                    -1, 4
+                )  # guard against no boxes
+                video_orig_boxes = BoxList(video_orig_boxes_tensor, (im_w, im_h), mode="xyxy")
+                video_orig_boxes = video_orig_boxes.bbox
+
+                if len(video_box_score) == 0:
+                    all_video_keypoint.append(np.zeros((17, 3)))
+                    continue
+
+                video_boxes = np.array(video_boxes)
+                video_orig_boxes = video_orig_boxes.cpu().numpy()
+                idx_to_keep = np.argmax(iou(video_orig_boxes, video_boxes), 1)
+                video_keypoints = np.array(video_keypoints)
+                video_keypoints = video_keypoints[idx_to_keep]
+                video_keypoints = video_keypoints.squeeze()
+                all_video_keypoint.append(video_keypoints)
+            all_video_keypoints.append(all_video_keypoint)
+        all_video_keypoints = np.array(all_video_keypoints, dtype=np.float32)
 
         if len(box_score) == 0:
             kpts_boxes = BoxList(
@@ -301,6 +378,8 @@ class DatasetEngine(data.Dataset):
                 mode="xyxy",
             )
             kpts_boxes.add_field("keypoints", np.zeros((orig_boxes.shape[0], 17, 3)))
+            all_video_keypoints = np.repeat(all_video_keypoints, repeats=orig_boxes.shape[0], axis=0)
+            kpts_boxes.add_field("video_keypoints", all_video_keypoints)
             return kpts_boxes
 
         # Keep only the keypoints with corresponding boxes in the GT
@@ -310,6 +389,7 @@ class DatasetEngine(data.Dataset):
         boxes = boxes[idx_to_keep]
         keypoints = np.array(keypoints)
         keypoints = keypoints[idx_to_keep]
+        all_video_keypoints = all_video_keypoints[idx_to_keep]
 
         keypoints_boxes_tensor = torch.as_tensor(boxes).reshape(-1, 4)
         kpts_boxes = BoxList(keypoints_boxes_tensor, (im_w, im_h), mode="xyxy")
@@ -317,6 +397,10 @@ class DatasetEngine(data.Dataset):
         scores = torch.as_tensor(box_score)
         kpts_boxes.add_field("scores", scores)
         kpts_boxes.add_field("keypoints", keypoints)
+        kpts_boxes.add_field("video_keypoints", all_video_keypoints)
+
+        if keypoints.shape[0] != all_video_keypoints.shape[0]:
+            print("test")
 
         return kpts_boxes
 

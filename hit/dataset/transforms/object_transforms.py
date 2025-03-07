@@ -1,13 +1,14 @@
 import numpy as np
 import torch
 
+
 class Compose(object):
     # Class used to compose different kinds of object transforms
     def __init__(self, transforms):
         self.transforms = transforms
 
     def __call__(self, object_boxes, _, transform_randoms):
-        #should reuse the random varaible in video transforms
+        # should reuse the random varaible in video transforms
         for t in self.transforms:
             object_boxes = t(object_boxes, _, transform_randoms)
         return object_boxes
@@ -54,18 +55,18 @@ class Resize(object):
     def __call__(self, object_boxes, _, transform_randoms):
         # resize according to video transforms
         in_size = object_boxes.size
-        out_size = transform_randoms['Resize']
+        out_size = transform_randoms["Resize"]
         size = transform_randoms["Resize"]
         if "keypoints" in object_boxes.extra_fields:
-            keypoints = object_boxes.extra_fields['keypoints'][:, :, :2] 
-            object_boxes.extra_fields['keypoints'] = self.resize_keypoint(keypoints, in_size, out_size)
+            keypoints = object_boxes.extra_fields["keypoints"][:, :, :2]
+            object_boxes.extra_fields["keypoints"] = self.resize_keypoint(keypoints, in_size, out_size)
+        if "video_keypoints" in object_boxes.extra_fields:
+            video_keypoints = object_boxes.extra_fields["video_keypoints"][:, :, :, :2]
+            object_boxes.extra_fields["video_keypoints"] = self.resize_keypoint(video_keypoints, in_size, out_size)
         if object_boxes is not None:
             object_boxes = object_boxes.resize(size)
 
-        
-
         return object_boxes
-
 
 
 class RandomHorizontalFlip(object):
