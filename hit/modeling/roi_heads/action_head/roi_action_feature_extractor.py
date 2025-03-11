@@ -6,6 +6,7 @@ from hit.modeling import registry
 from hit.modeling.poolers import make_3d_pooler
 from hit.modeling.roi_heads.action_head.hit_structure import make_hit_structure
 from hit.modeling.roi_heads.action_head.pose_transformer import PoseTransformer
+
 # from hit.modeling.roi_heads.action_head.pose_transformerV2 import PoseTransformerV2
 from hit.modeling.utils import cat, pad_sequence, prepare_pooled_feature
 from hit.structures.bounding_box import BoxList
@@ -23,7 +24,10 @@ class MLPFeatureExtractor(nn.Module):
 
         resolution = head_cfg.POOLER_RESOLUTION
 
-        self.max_pooler = nn.MaxPool3d((1, resolution, resolution))
+        # self.max_pooler = nn.MaxPool3d((1, resolution, resolution))
+        target_size = (1, 1, 1)
+        self.max_pooler = nn.AdaptiveMaxPool3d(target_size)
+
         self.pose_out = config.MODEL.HIT_STRUCTURE.DIM_INNER
         if config.MODEL.HIT_STRUCTURE.ACTIVE:
             self.max_feature_len_per_sec = config.MODEL.HIT_STRUCTURE.MAX_PER_SEC
