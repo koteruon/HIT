@@ -22,7 +22,7 @@ from hit.utils.logger import setup_logger, setup_tblogger
 from hit.utils.random_seed import set_seed
 from torch.utils.collect_env import get_pretty_env_info
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # CUDA_LAUNCH_BLOCKING=1
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (rlimit[1], rlimit[1]))
