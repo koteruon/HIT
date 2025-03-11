@@ -1,6 +1,6 @@
 # Modified from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/utils/model_serialization.py
-from collections import OrderedDict
 import logging
+from collections import OrderedDict
 
 import torch
 
@@ -24,12 +24,8 @@ def align_and_update_state_dicts(model_state_dict, loaded_state_dict, no_head):
     loaded_keys = sorted(list(loaded_state_dict.keys()))
     # get a matrix of string matches, where each (i, j) entry correspond to the size of the
     # loaded_key string, if it matches
-    match_matrix = [
-        len(j) if i.endswith(j) else 0 for i in current_keys for j in loaded_keys
-    ]
-    match_matrix = torch.as_tensor(match_matrix).view(
-        len(current_keys), len(loaded_keys)
-    )
+    match_matrix = [len(j) if i.endswith(j) else 0 for i in current_keys for j in loaded_keys]
+    match_matrix = torch.as_tensor(match_matrix).view(len(current_keys), len(loaded_keys))
     max_match_size, idxs = match_matrix.max(1)
     # remove indices that correspond to no-match
     idxs[max_match_size == 0] = -1
@@ -78,6 +74,14 @@ def load_state_dict(model, loaded_state_dict, no_head):
     # remove the "module" prefix before performing the matching
     loaded_state_dict = strip_prefix_if_present(loaded_state_dict, prefix="module.")
     align_and_update_state_dicts(model_state_dict, loaded_state_dict, no_head)
+
+    # use strict loading
+    model.load_state_dict(model_state_dict)
+
+
+def load_skateformer_state_dict(model, loaded_state_dict):
+    model_state_dict = model.state_dict()
+    align_and_update_state_dicts(model_state_dict, loaded_state_dict, True)
 
     # use strict loading
     model.load_state_dict(model_state_dict)
