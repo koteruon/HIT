@@ -53,3 +53,5 @@ detector/yolov8/datasets
 
 gt.csv
 pred.csv
+
+/skateformer
