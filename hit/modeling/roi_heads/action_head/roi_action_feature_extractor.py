@@ -2,12 +2,13 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from hit.dataset.datasets import table_tennis_tools
 from hit.modeling import registry
 from hit.modeling.poolers import make_3d_pooler
 from hit.modeling.roi_heads.action_head.hit_structure import make_hit_structure
 from hit.modeling.roi_heads.action_head.pose_transformer import PoseTransformer
-from hit.modeling.roi_heads.action_head.SkateFormer_2D import SkateFormer_
-
+from hit.modeling.roi_heads.action_head.SkateFormer_2D_for_hit import \
+    SkateFormer_
 # from hit.modeling.roi_heads.action_head.pose_transformerV2 import PoseTransformerV2
 from hit.modeling.utils import cat, pad_sequence, prepare_pooled_feature
 from hit.structures.bounding_box import BoxList
@@ -50,8 +51,10 @@ class MLPFeatureExtractor(nn.Module):
         self.dim_out = representation_size
 
         if config.MODEL.SKATEFORMER_WEIGHT != "":
-            self.pose_transformer = SkateFormer_(**config.MODEL.SKATEFORMER)
+            self.is_skateformer = True
+            self.skateformer = SkateFormer_(**config.MODEL.SKATEFORMER)
         else:
+            self.is_skateformer = False
             self.pose_transformer = PoseTransformer()
             # self.pose_transformer = PoseTransformerV2()
 
@@ -159,8 +162,18 @@ class MLPFeatureExtractor(nn.Module):
 
             assert pose_data.shape[0] == person_pooled.shape[0]
             if pose_data.shape[0] == person_pooled.shape[0]:
-                self.pose_transformer = self.pose_transformer.to(keypoints[0].bbox.device)
-                pose_out = self.pose_transformer(pose_data)
+                if self.is_skateformer:
+                    self.skateformer = self.skateformer.to(keypoints[0].bbox.device)
+                    pose_data = pose_data.permute(3, 1, 2, 0)  # (B, T, V, C) -> (C, T, V, B)
+                    j2b = table_tennis_tools.joint2bone()
+                    pose_data = j2b(pose_data)
+                    pose_data = table_tennis_tools.partition
+                    pose_data = pose_data.permute(3, 0, 1, 2).unsqueeze(-1)  # (C, T, V, B) -> (B, C, T, V, M)
+                    intex_s = torch.tensor(extras["video_intex_ts"]).to(keypoints[0].bbox.device)
+                    pose_out = self.skateformer(pose_data, intex_s)
+                else:
+                    self.pose_transformer = self.pose_transformer.to(keypoints[0].bbox.device)
+                    pose_out = self.pose_transformer(pose_data)
                 pose_out = pose_out.view(-1, self.pose_out).unsqueeze(2).unsqueeze(2).unsqueeze(2)
             else:
                 pose_out = None

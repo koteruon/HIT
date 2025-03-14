@@ -155,7 +155,7 @@ class MixedBlock(nn.Module):
 class PoseTransformerV2(nn.Module):
     def __init__(
         self,
-        num_frame=40,  # 1
+        num_frame=1,  # 1
         num_joints=17,
         in_chans=2,
         embed_dim_ratio=32,

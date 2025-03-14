@@ -16,7 +16,6 @@ from hit.utils.comm import get_rank, synchronize
 from hit.utils.IA_helper import has_memory
 from hit.utils.logger import setup_logger
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (rlimit[1], rlimit[1]))
 
@@ -36,8 +35,10 @@ def main():
         default=None,
         nargs=argparse.REMAINDER,
     )
+    parser.add_argument("--device", type=int, default=0, help="the indexes of GPUs for training or testing")
 
     args = parser.parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.device)
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     distributed = num_gpus > 1

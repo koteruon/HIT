@@ -1,6 +1,6 @@
 MODEL:
   WEIGHT: 'data/models/pretrained_models/SlowFast-ResNet50-4x16.pth'
-  SKATEFORMER_WEIGHT: 'data/models/skateformer/20250312/runs-500-73500.pt'
+  SKATEFORMER_WEIGHT: 'data/models/skateformer/20250313/runs-450-159300.pt'
   BACKBONE:
     CONV_BODY: 'Slowfast-Resnet50'
     FROZEN_BN: True
@@ -45,7 +45,7 @@ MODEL:
     DIM_OUT: 2304
     I_BLOCK_LIST: ['P', 'O', 'H', 'M', 'P', 'O', 'H', 'M']
   SKATEFORMER:
-    num_classes: 8
+    num_classes: 21
     num_people: 1
     num_points: 16
     kernel_size: 7
@@ -61,7 +61,7 @@ MODEL:
     mlp_ratio: 4.0
     index_t: True
 INPUT:
-  FRAME_NUM: 40 # 32
+  FRAME_NUM: 32
   FRAME_SAMPLE_RATE: 1
   TAU: 4
   ALPHA: 1
@@ -89,4 +89,4 @@ TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: 'data/output/hitnet_pose_transformer_20250310_21'
+OUTPUT_DIR: 'data/output/hitnet_pose_transformer_with_skateformer_20250313_02'

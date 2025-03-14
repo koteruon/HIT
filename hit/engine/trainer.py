@@ -61,6 +61,7 @@ def do_train(
             mem_extras["movie_ids"] = movie_ids
             mem_extras["timestamps"] = timestamps
             mem_extras["cur_loss"] = losses_reduced.item()
+            mem_extras["video_intex_ts"] = [e["video_intex_ts"] for e in extras if "video_intex_ts" in e]
 
         loss_dict, weight_dict, metric_dict, pooled_feature = model(
             slow_video, fast_video, boxes, objects, keypoints, mem_extras
