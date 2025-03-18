@@ -3,20 +3,21 @@ import logging
 import os
 
 import torch
+
 from hit.structures.memory_pool import MemoryPool
 from hit.utils.c2_model_loading import load_c2_format
-from hit.utils.model_serialization import load_state_dict
+from hit.utils.model_serialization import load_skateformer_state_dict, load_state_dict
 
 
 class Checkpointer(object):
     def __init__(
-            self,
-            model,
-            optimizer=None,
-            scheduler=None,
-            save_dir="",
-            save_to_disk=None,
-            logger=None,
+        self,
+        model,
+        optimizer=None,
+        scheduler=None,
+        save_dir="",
+        save_to_disk=None,
+        logger=None,
     ):
         self.model = model
         self.optimizer = optimizer
@@ -47,7 +48,7 @@ class Checkpointer(object):
         torch.save(data, save_file)
         self.tag_last_checkpoint(save_file)
 
-    def load(self, f=None, model_weight_only=False, adjust_scheduler=False, no_head=False):
+    def load(self, f=None, model_weight_only=False, adjust_scheduler=False, no_head=False, skateformer_weight=None):
         if not f:
             if self.has_checkpoint():
                 # override argument with existing checkpoint
@@ -59,17 +60,20 @@ class Checkpointer(object):
         self.logger.info("Loading checkpoint from {}".format(f))
         checkpoint = self._load_file(f)
         self._load_model(checkpoint, no_head)
+        if skateformer_weight:
+            skateformer_checkpoint = self._load_file(skateformer_weight)
+            self._load_skateformer_model(skateformer_checkpoint)
         if "optimizer" in checkpoint and self.optimizer:
             if model_weight_only:
-                del checkpoint['optimizer']
+                del checkpoint["optimizer"]
             else:
                 self.logger.info("Loading optimizer from {}".format(f))
                 self.optimizer.load_state_dict(checkpoint.pop("optimizer"))
         if "scheduler" in checkpoint and self.scheduler:
             if model_weight_only:
-                del checkpoint['scheduler']
+                del checkpoint["scheduler"]
             elif adjust_scheduler:
-                last_epoch = checkpoint.pop("scheduler")['last_epoch']
+                last_epoch = checkpoint.pop("scheduler")["last_epoch"]
                 self.logger.info("Adjust scheduler at iteration {}".format(last_epoch))
                 self.scheduler.step(last_epoch)
             else:
@@ -109,21 +113,22 @@ class Checkpointer(object):
     def _load_model(self, checkpoint, no_head):
         load_state_dict(self.model, checkpoint.pop("model"), no_head)
 
+    def _load_skateformer_model(self, checkpoint):
+        load_skateformer_state_dict(self.model, checkpoint.pop("model"))
+
 
 class ActionCheckpointer(Checkpointer):
     def __init__(
-            self,
-            cfg,
-            model,
-            optimizer=None,
-            scheduler=None,
-            save_dir="",
-            save_to_disk=None,
-            logger=None,
+        self,
+        cfg,
+        model,
+        optimizer=None,
+        scheduler=None,
+        save_dir="",
+        save_to_disk=None,
+        logger=None,
     ):
-        super(ActionCheckpointer, self).__init__(
-            model, optimizer, scheduler, save_dir, save_to_disk, logger
-        )
+        super(ActionCheckpointer, self).__init__(model, optimizer, scheduler, save_dir, save_to_disk, logger)
         self.cfg = cfg.clone()
 
     def _load_file(self, f):

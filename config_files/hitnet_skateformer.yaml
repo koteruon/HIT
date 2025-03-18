@@ -1,11 +1,12 @@
 MODEL:
-  WEIGHT: "data/models/pretrained_models/SlowFast-ResNet50-4x16.pth"
+  WEIGHT: 'data/models/pretrained_models/SlowFast-ResNet50-4x16.pth'
+  SKATEFORMER_WEIGHT: 'data/models/skateformer/20250312/runs-500-73500.pt'
   BACKBONE:
-    CONV_BODY: "Slowfast-Resnet50"
+    CONV_BODY: 'Slowfast-Resnet50'
     FROZEN_BN: True
     SLOWFAST:
       BETA: 0.125
-      LATERAL: "tconv"
+      LATERAL: 'tconv'
       SLOW:
         ACTIVE: True
         CONV3_NONLOCAL: False
@@ -19,8 +20,8 @@ MODEL:
     BN_INIT_GAMMA: 0.0
     FROZEN_BN: True
   ROI_ACTION_HEAD:
-    FEATURE_EXTRACTOR: "2MLPFeatureExtractor"
-    POOLER_TYPE: "align3d"
+    FEATURE_EXTRACTOR: '2MLPFeatureExtractor'
+    POOLER_TYPE: 'align3d'
     MEAN_BEFORE_POOLER: True
     POOLER_RESOLUTION: 7
     POOLER_SCALE: 0.0625
@@ -30,9 +31,9 @@ MODEL:
     DROPOUT_RATE: 0.2
   HIT_STRUCTURE:
     ACTIVE: True
-    STRUCTURE: "hitnet"
+    STRUCTURE: 'hitnet'
     DROPOUT: 0.2
-    FUSION: "add"
+    FUSION: 'add'
     TEMPORAL_POSITION: True
     USE_ZERO_INIT_CONV: True
     LAYER_NORM: True
@@ -42,7 +43,23 @@ MODEL:
     MAX_PER_SEC: 5
     DIM_INNER: 1024
     DIM_OUT: 2304
-    I_BLOCK_LIST: [ "P", "O", "H", "M", "P", "O", "H", "M", ]
+    I_BLOCK_LIST: ['P', 'O', 'H', 'M', 'P', 'O', 'H', 'M']
+  SKATEFORMER:
+    num_classes: 8
+    num_people: 1
+    num_points: 16
+    kernel_size: 7
+    num_heads: 32
+    attn_drop: 0.5
+    head_drop: 0.0
+    rel: True
+    drop_path: 0.2
+    type_1_size: [4, 4]
+    type_2_size: [4, 8]
+    type_3_size: [4, 4]
+    type_4_size: [4, 8]
+    mlp_ratio: 4.0
+    index_t: True
 INPUT:
   FRAME_NUM: 40 # 32
   FRAME_SAMPLE_RATE: 1
@@ -72,4 +89,4 @@ TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_20250310_08"
+OUTPUT_DIR: 'data/output/hitnet_pose_transformer_20250310_21'

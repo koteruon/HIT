@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import torch
 import torch.nn as nn
+
 from hit.layers import FrozenBatchNorm3d
 from hit.modeling.common_blocks import ResNLBlock
 
@@ -159,7 +160,9 @@ class FastPath(nn.Module):
             )
 
         self.relu = nn.ReLU(inplace=False)
-        self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
+        # self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
+        target_size = (10, 63, 87)
+        self.maxpool1 = nn.AdaptiveMaxPool3d(target_size)
 
         self.res_nl1 = ResNLBlock(
             cfg,
@@ -282,7 +285,9 @@ class SlowPath(nn.Module):
             )
 
         self.relu = nn.ReLU(inplace=False)
-        self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
+        # self.maxpool1 = nn.MaxPool3d((pool_strides_set[0], 3, 3), stride=(pool_strides_set[0], 2, 2))
+        target_size = (10, 63, 87)
+        self.maxpool1 = nn.AdaptiveMaxPool3d(target_size)
 
         self.res_nl1 = ResNLBlock(
             cfg,

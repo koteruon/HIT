@@ -4,10 +4,13 @@ Basic training script for PyTorch
 
 import argparse
 import os
+
 # pytorch issuse #973
 import resource
 
 import torch
+from torch.utils.collect_env import get_pretty_env_info
+
 from hit.config import cfg
 from hit.dataset import make_data_loader
 from hit.engine.inference import inference
@@ -20,16 +23,16 @@ from hit.utils.comm import get_rank, synchronize
 from hit.utils.IA_helper import has_memory
 from hit.utils.logger import setup_logger, setup_tblogger
 from hit.utils.random_seed import set_seed
-from torch.utils.collect_env import get_pretty_env_info
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # CUDA_LAUNCH_BLOCKING=1
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (rlimit[1], rlimit[1]))
 
 
-def train(cfg, local_rank, distributed, tblogger=None, transfer_weight=False, adjust_lr=False, skip_val=False,
-          no_head=False):
+def train(
+    cfg, local_rank, distributed, tblogger=None, transfer_weight=False, adjust_lr=False, skip_val=False, no_head=False
+):
     # build the model.
     model = build_detection_model(cfg)
 
@@ -42,9 +45,12 @@ def train(cfg, local_rank, distributed, tblogger=None, transfer_weight=False, ad
 
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[local_rank], output_device=local_rank,
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
             # this should be removed if we update BatchNorm stats
-            broadcast_buffers=False, find_unused_parameters=True,
+            broadcast_buffers=False,
+            find_unused_parameters=True,
         )
 
     arguments = {}
@@ -56,8 +62,13 @@ def train(cfg, local_rank, distributed, tblogger=None, transfer_weight=False, ad
     # load weight.
     save_to_disk = get_rank() == 0
     checkpointer = ActionCheckpointer(cfg, model, optimizer, scheduler, output_dir, save_to_disk)
-    extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT, model_weight_only=transfer_weight,
-                                              adjust_scheduler=adjust_lr, no_head=no_head)
+    extra_checkpoint_data = checkpointer.load(
+        cfg.MODEL.WEIGHT,
+        model_weight_only=transfer_weight,
+        adjust_scheduler=adjust_lr,
+        no_head=no_head,
+        skateformer_weight=cfg.MODEL.SKATEFORMER_WEIGHT,
+    )
 
     arguments.update(extra_checkpoint_data)
 
@@ -66,7 +77,7 @@ def train(cfg, local_rank, distributed, tblogger=None, transfer_weight=False, ad
         cfg,
         is_train=True,
         is_distributed=distributed,
-        start_iter=arguments['iteration'],
+        start_iter=arguments["iteration"],
     )
 
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
@@ -158,13 +169,10 @@ def main():
         help="Transfer weight from a pretrained model",
         action="store_true",
         #
-        default=True
+        default=True,
     )
     parser.add_argument(
-        "--adjust-lr",
-        dest="adjust_lr",
-        help="Adjust learning rate scheduler from old checkpoint",
-        action="store_true"
+        "--adjust-lr", dest="adjust_lr", help="Adjust learning rate scheduler from old checkpoint", action="store_true"
     )
     parser.add_argument(
         "--no-head",
@@ -172,22 +180,17 @@ def main():
         help="Not load the head layer parameters from weight file",
         action="store_true",
         #
-        default=True
+        default=True,
     )
     parser.add_argument(
         "--use-tfboard",
-        action='store_true',
-        dest='tfboard',
-        help='Use tensorboard to log stats',
+        action="store_true",
+        dest="tfboard",
+        help="Use tensorboard to log stats",
         #
-        default=True
+        default=True,
     )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=2,
-        help="Manual seed at the begining."
-    )
+    parser.add_argument("--seed", type=int, default=2, help="Manual seed at the begining.")
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -202,9 +205,7 @@ def main():
 
     if args.distributed:
         torch.cuda.set_device(args.local_rank)
-        torch.distributed.init_process_group(
-            backend="nccl", init_method="env://"
-        )
+        torch.distributed.init_process_group(backend="nccl", init_method="env://")
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -240,8 +241,16 @@ def main():
     set_seed(args.seed, global_rank, num_gpus)
 
     # do training.
-    model = train(cfg, args.local_rank, args.distributed, tblogger, args.transfer_weight, args.adjust_lr, args.skip_val,
-                  args.no_head)
+    model = train(
+        cfg,
+        args.local_rank,
+        args.distributed,
+        tblogger,
+        args.transfer_weight,
+        args.adjust_lr,
+        args.skip_val,
+        args.no_head,
+    )
 
     if tblogger is not None:
         tblogger.close()
@@ -249,6 +258,7 @@ def main():
     # do final testing.
     if not args.skip_test:
         run_test(cfg, model, args.distributed)
+
 
 if __name__ == "__main__":
     main()
