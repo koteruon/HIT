@@ -2,7 +2,7 @@
 
 CONFIG_FILE="./config_files/hitnet.yaml"
 
-i=1
+i=3
 while [ $i -lt 100 ]
 do
   # 格式化 OUTPUT_DIR 為四位數 (0000 ~ 9999)
@@ -12,7 +12,7 @@ do
   sed -i "s|OUTPUT_DIR: .*|OUTPUT_DIR: \"data/output/hitnet_pose_transformer_20250315_${OUTPUT_NUM}\"|" "$CONFIG_FILE"
 
   # 執行 python 指令，seed 直接使用數值格式
-  python train_net.py --config-file "$CONFIG_FILE"
+  python train_net.py --config-file "$CONFIG_FILE" --device 1
 
   # 增加計數
   i=$((i + 1))

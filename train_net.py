@@ -196,10 +196,12 @@ def main():
         default=None,
         nargs=argparse.REMAINDER,
     )
-    parser.add_argument("--device", type=int, default=0, help="the indexes of GPUs for training or testing")
+    parser.add_argument(
+        "--device", type=int, nargs="+", default=[0], help="the indexes of GPUs for training or testing"
+    )
 
     args = parser.parse_args()
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.device)
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, args.device))
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = num_gpus > 1

@@ -547,7 +547,7 @@ class DatasetEngine(data.Dataset):
                 if not generate_dataset:
                     all_video_keypoint = np.transpose(all_video_keypoint, (2, 0, 1))  # (C, T, V)
                     all_video_keypoint = np.expand_dims(all_video_keypoint, axis=-1)  # (C, T, V, M)
-                    p_interval = [0.5, 1] if self.is_train else [0.95]
+                    p_interval = [0.95]
                     all_video_keypoint, index_t = self.valid_crop_uniform(
                         all_video_keypoint, all_video_keypoint.shape[1], p_interval, self.frame_span, self.frame_span
                     )  # (C, T, V, M)

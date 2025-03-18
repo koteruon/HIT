@@ -549,11 +549,9 @@ class SkateFormer(nn.Module):
             input = self.dropout(input)
 
         input = self.hit_linear(input)
-        input = input.view(input.size(0), 1024, 1, 1, 1)
         if is_hit:
             return input
         else:
-            input = input.view(input.size(0), -1)
             return self.head(input)
 
     def forward(self, input, index_t, is_hit=False):
@@ -578,4 +576,5 @@ class SkateFormer(nn.Module):
 
 
 def SkateFormer_(**kwargs):
+    # return SkateFormer(depths=(2, 2, 2, 2), channels=(96, 192, 192, 192), embed_dim=96, **kwargs)
     return SkateFormer(depths=(2, 2, 2, 2), channels=(96, 192, 192, 192), embed_dim=96, **kwargs)

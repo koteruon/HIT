@@ -340,12 +340,13 @@ def skeleton_adain_bone_length(input, ref):  # C T V M
 
 
 def partition(data_numpy):
-    right_arm = np.array([11, 12, 13])
-    left_arm = np.array([14, 15, 16])
-    right_leg = np.array([4, 5, 6])
-    left_leg = np.array([1, 2, 3])
-    torso = np.array([7, 9, 0, 10])
-    new_idx = np.concatenate((right_arm, left_arm, right_leg, left_leg, torso), axis=-1)
+    right_arm = np.array([10, 11])  # (5,7), (7,9)
+    left_arm = np.array([8, 9])  # (6,8), (8,10)
+    right_leg = np.array([14, 15])  # (11,13), (13,15)
+    left_leg = np.array([12, 13])  # (12,14), (14,16)
+    torso = np.array([4, 5, 6, 7])  # (6,5), (12,11), (6,12), (5,11)
+    head = np.array([0, 1, 2, 3])  # (0,2), (0,1), (2,4), (1,3)
+    new_idx = np.concatenate((right_arm, left_arm, right_leg, left_leg, torso, head), axis=-1)
     return data_numpy[:, :, new_idx]
 
 

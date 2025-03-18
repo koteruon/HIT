@@ -5,10 +5,11 @@ import os
 import time
 
 import torch
+from tqdm import tqdm
+
 from hit.dataset.datasets.evaluation import evaluate
 from hit.structures.memory_pool import MemoryPool
 from hit.utils.comm import all_gather, gather, get_rank, get_world_size, is_main_process, synchronize
-from tqdm import tqdm
 
 
 def compute_on_dataset_1stage(model, data_loader, device):
@@ -62,8 +63,10 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
         objects = [None if (box is None) else box.to(device) for box in objects]
         movie_ids = [e["movie_id"] for e in extras]
         timestamps = [e["timestamp"] for e in extras]
+        mem_extras = {}
+        mem_extras["video_intex_ts"] = [e["video_intex_ts"] for e in extras if "video_intex_ts" in e]
         with torch.no_grad():
-            feature = model(slow_clips, fast_clips, boxes, objects, keypoints, part_forward=0)
+            feature = model(slow_clips, fast_clips, boxes, objects, keypoints, mem_extras, part_forward=0)
             person_feature = [ft.to(cpu_device) for ft in feature[0]]
             object_feature = [ft.to(cpu_device) for ft in feature[1]]
             hand_feature = [ft.to(cpu_device) for ft in feature[2]]
