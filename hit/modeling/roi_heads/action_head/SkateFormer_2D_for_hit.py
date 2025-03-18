@@ -515,8 +515,7 @@ class SkateFormer(nn.Module):
         self.stages = nn.ModuleList(stages)
         self.global_pool: str = global_pool
 
-        self.hit_conv1x1 = nn.Conv2d(channels[-1], 1024, kernel_size=1)
-        self.hit_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.hit_linear = nn.Linear(192, 1024)
 
         self.head = nn.Linear(1024, num_classes)
         # self.head = nn.Linear(channels[-1], num_classes)
@@ -542,16 +541,17 @@ class SkateFormer(nn.Module):
         return output
 
     def forward_head(self, input, is_hit=False):
-        input = self.hit_conv1x1(input)
-        input = self.hit_avgpool(input)
-        input = input.unsqueeze(2)
+        if self.global_pool == "avg":
+            input = input.mean(dim=(2, 3))
+        elif self.global_pool == "max":
+            input = torch.amax(input, dim=(2, 3))
         if self.dropout is not None:
             input = self.dropout(input)
 
+        input = self.hit_linear(input)
         if is_hit:
             return input
         else:
-            input = input.view(input.size(0), -1)
             return self.head(input)
 
     def forward(self, input, index_t, is_hit=False):
@@ -576,4 +576,5 @@ class SkateFormer(nn.Module):
 
 
 def SkateFormer_(**kwargs):
+    # return SkateFormer(depths=(2, 2, 2, 2), channels=(96, 192, 192, 192), embed_dim=96, **kwargs)
     return SkateFormer(depths=(2, 2, 2, 2), channels=(96, 192, 192, 192), embed_dim=96, **kwargs)

@@ -9,6 +9,7 @@ _C = CN()
 _C.MODEL = CN()
 
 _C.MODEL.WEIGHT = ""
+_C.MODEL.USE_SKATEFORMER = False
 _C.MODEL.SKATEFORMER_WEIGHT = ""
 
 # -----------------------------------------------------------------------------

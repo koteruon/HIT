@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.utils.data as data
 from PIL import Image
 
@@ -37,11 +38,19 @@ class NpInfoDict(object):
 
 # This is used to avoid pytorch issuse #13246
 class NpBoxDict(object):
-    def generate_range(self, num):
+    def generate_range(self, num, frame_span):
+        right_span = frame_span // 2
+        left_span = frame_span - right_span
         base = num // 100 * 100  # 取得數字所屬的百位區間
-        return list(range(base + 1, base + 41))  # 產生從 base+1 到 base+40 的數列
+        tail_digit = num % 100  # 取得尾數
 
-    def __init__(self, id_to_box_dict, key_list=None, value_types=[], clip2ann=None):
+        min_val = max(1, tail_digit - left_span + 1)
+        max_val = min(40, tail_digit + right_span)
+        valid_numbers = np.arange(min_val, max_val + 1) + base
+
+        return np.pad(valid_numbers, (0, frame_span - len(valid_numbers)), constant_values=-1).tolist()
+
+    def __init__(self, id_to_box_dict, key_list=None, value_types=[], clip2ann=None, frame_span=None):
         value_fields, value_types = list(zip(*value_types))
         # if "keypoints" not in value_fields:
         assert "bbox" in value_fields
@@ -59,7 +68,7 @@ class NpBoxDict(object):
             if "video_keypoints" in value_fields:
                 video_id_to_box_dict = defaultdict(list, id_to_box_dict)
                 video_keypoints_list = []
-                video_key_list = self.generate_range(k)
+                video_key_list = self.generate_range(k, frame_span)
                 for video_k in video_key_list:
                     video_value_lists = {
                         field: [] for field in value_fields + ("orig_boxes",) if field != "video_keypoints"
@@ -85,7 +94,7 @@ class NpBoxDict(object):
 
             if "video_keypoints" in value_fields:
                 if len(box_infos) == 0:
-                    self.no_box_infos_video_keypoints[cur] = [video_keypoints_list]
+                    self.no_box_infos_video_keypoints[len(pointer_list) - 2] = [video_keypoints_list]
 
         self.pointer_arr = np.array(pointer_list, dtype=np.int32)
         self.attr_names = np.array(["vfield_" + field for field in value_fields])
@@ -100,8 +109,8 @@ class NpBoxDict(object):
         r_pointer = self.pointer_arr[idx + 1]
         ret_val = [getattr(self, attr_name)[l_pointer:r_pointer] for attr_name in self.attr_names]
         if "vfield_video_keypoints" in self.attr_names:
-            if l_pointer == r_pointer and l_pointer in self.no_box_infos_video_keypoints:
-                ret_val[0] = self.no_box_infos_video_keypoints[l_pointer]
+            if l_pointer == r_pointer and idx in self.no_box_infos_video_keypoints:
+                ret_val[0] = self.no_box_infos_video_keypoints[idx]
         return ret_val
 
     def __len__(self):
@@ -145,6 +154,7 @@ class DatasetEngine(data.Dataset):
         self.video_root = video_root
         self.transforms = transforms
         self.frame_span = frame_span
+        self.is_train = is_train
 
         # These two attributes are used during ava evaluation...
         # Maybe there is a better implementation
@@ -172,7 +182,7 @@ class DatasetEngine(data.Dataset):
             clips_info[img["id"]] = [mov, img["timestamp"]]
         self.movie_info = NpInfoDict(movies_size, value_type=np.int32)
         clip_ids = sorted(list(clips_info.keys()))
-        clip_ids = self.find_best_clip_ids(clip_ids)
+        # clip_ids = self.find_best_clip_ids(clip_ids)
 
         # 移除沒有標註的image_id
         if remove_clips_without_annotations:
@@ -217,6 +227,7 @@ class DatasetEngine(data.Dataset):
                     ("score", np.float32),
                 ],
                 clip2ann=clip2ann,
+                frame_span=frame_span,
             )
         else:
             self.det_keypoints = None
@@ -258,7 +269,7 @@ class DatasetEngine(data.Dataset):
 
         self.movies_action_gt = NpInfoDict(movies_action, value_type=np.int32)
 
-        # self.make_skateformer_dataset(is_train)
+        self.make_skateformer_dataset(is_train)
 
     def make_skateformer_dataset(self, is_train):
         import json
@@ -270,80 +281,83 @@ class DatasetEngine(data.Dataset):
             skateformer_dir = Path("skateformer/jhmdb/train")
         else:
             skateformer_dir = Path("skateformer/jhmdb/valid")
-        skateformer_dir.mkdir(parents=True, exist_ok=True)
 
-        for idx in tqdm(range(len(self.clips_info))):
-            _, clip_info = self.clips_info[idx]
+        if not skateformer_dir.exists():
+            skateformer_dir.mkdir(parents=True, exist_ok=True)
 
-            # mov_id is the id in self.movie_info
-            mov_id, timestamp = clip_info
-            # movie_id is the human-readable youtube id.
-            movie_id, movie_size = self.movie_info[mov_id]
-            video_data = self._decode_video_data(movie_id, timestamp)
+            for idx in tqdm(range(len(self.clips_info))):
+                _, clip_info = self.clips_info[idx]
 
-            im_w, im_h = movie_size
+                # mov_id is the id in self.movie_info
+                mov_id, timestamp = clip_info
+                # movie_id is the human-readable youtube id.
+                movie_id, movie_size = self.movie_info[mov_id]
+                video_data = self._decode_video_data(movie_id, timestamp)
 
-            # Note: During training, we only use gt. Thus we should not provide box file,
-            # otherwise we will use only box file instead.
+                im_w, im_h = movie_size
 
-            boxes, packed_act = self.anns[idx]
+                # Note: During training, we only use gt. Thus we should not provide box file,
+                # otherwise we will use only box file instead.
 
-            boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)  # guard against no boxes
-            boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xyxy")
+                boxes, packed_act = self.anns[idx]
 
-            one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
+                boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)  # guard against no boxes
+                boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xyxy")
 
-            boxes.add_field("labels", one_hot_label)
+                one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
 
-            boxes = boxes.clip_to_image(remove_empty=True)
-            # boxes = boxes.clip_to_image(remove_empty=False)
+                boxes.add_field("labels", one_hot_label)
 
-            # Get boxes before the transform
-            # To calculate correct IoU
-            orig_boxes = boxes.bbox
-            # extra fields
-            extras = {}
+                boxes = boxes.clip_to_image(remove_empty=True)
+                # boxes = boxes.clip_to_image(remove_empty=False)
 
-            if self.transforms is not None:
-                video_data, boxes, transform_randoms = self.transforms(video_data, boxes)
-                slow_video, fast_video = video_data
+                # Get boxes before the transform
+                # To calculate correct IoU
+                orig_boxes = boxes.bbox
+                # extra fields
+                extras = {}
 
-                objects = None
-                if self.det_objects is not None:
-                    objects = self.get_objects(idx, im_w, im_h)
-                if self.object_transforms is not None:
-                    objects = self.object_transforms(objects, boxes, transform_randoms)
-                keypoints = None
+                if self.transforms is not None:
+                    video_data, boxes, transform_randoms = self.transforms(video_data, boxes)
+                    slow_video, fast_video = video_data
 
-                if self.det_keypoints is not None:
-                    keypoints = self.get_keypoints(idx, im_w, im_h, orig_boxes)
-                video_keypoints_ori = keypoints.get_field("video_keypoints").squeeze(0)[:, :, :2].tolist()
-                video_boxes = keypoints.get_field("video_boxes")
-                keypoints.delete_field("video_boxes")
-                if self.object_transforms is not None:
-                    keypoints = self.object_transforms(keypoints, boxes, transform_randoms)
+                    objects = None
+                    if self.det_objects is not None:
+                        objects = self.get_objects(idx, im_w, im_h)
+                    if self.object_transforms is not None:
+                        objects = self.object_transforms(objects, boxes, transform_randoms)
+                    keypoints = None
 
-                extras["movie_id"] = movie_id
-                extras["timestamp"] = timestamp
+                    if self.det_keypoints is not None:
+                        keypoints = self.get_keypoints(idx, im_w, im_h, orig_boxes, generate_dataset=True)
+                        keypoints.delete_field("video_intex_ts")
+                    if len(keypoints.get_field("video_keypoints").squeeze(0)) > 0:
+                        video_keypoints_ori = keypoints.get_field("video_keypoints").squeeze(0)[:, :, :2].tolist()
+                        if self.object_transforms is not None:
+                            keypoints = self.object_transforms(keypoints, boxes, transform_randoms)
 
-            # 製作JSON
-            skateformer_anno_dir = skateformer_dir / movie_id / "annotation"
-            skateformer_anno_dir.mkdir(parents=True, exist_ok=True)
-            skateformer_path = skateformer_anno_dir / (str(mov_id) + ".json")
+                    extras["movie_id"] = movie_id
+                    extras["timestamp"] = timestamp
 
-            skateformer_data = {
-                "file_name": movie_id,
-                "skeletons": keypoints.get_field("video_keypoints").squeeze(0).tolist(),
-                "label": int(np.argmax(packed_act)),
-                "length": len(keypoints.get_field("video_keypoints").squeeze(0).tolist()),
-                "bbox": np.round(video_boxes.squeeze(0)).tolist(),
-                "skeletons_ori": video_keypoints_ori,
-            }
+                # 製作JSON
+                skateformer_anno_dir = skateformer_dir / movie_id / "annotation"
+                skateformer_anno_dir.mkdir(parents=True, exist_ok=True)
+                skateformer_path = skateformer_anno_dir / (f"{mov_id}_{timestamp}.json")
 
-            with open(skateformer_path, "w") as f:
-                json.dump(skateformer_data, f, indent=4)
+                skateformer_data = {
+                    "file_name": movie_id,
+                    "length": len(keypoints.get_field("video_keypoints").squeeze(0).tolist()),
+                    "label": int(np.argmax(packed_act)),
+                    "skeletons": keypoints.get_field("video_keypoints").squeeze(0).tolist(),
+                    "skeletons_ori": (
+                        video_keypoints_ori if len(keypoints.get_field("video_keypoints").squeeze(0)) > 0 else []
+                    ),
+                }
 
-        raise Exception("Finished")
+                with open(skateformer_path, "w") as f:
+                    json.dump(skateformer_data, f, indent=4)
+
+            raise Exception("Finished")
 
     def __getitem__(self, idx):
         _, clip_info = self.clips_info[idx]
@@ -397,7 +411,9 @@ class DatasetEngine(data.Dataset):
 
             if self.det_keypoints is not None:
                 keypoints = self.get_keypoints(idx, im_w, im_h, orig_boxes)
-            keypoints.delete_field("video_boxes")
+                video_intex_ts = keypoints.get_field("video_intex_ts")
+                extras["video_intex_ts"] = video_intex_ts
+                keypoints.delete_field("video_intex_ts")
             if self.object_transforms is not None:
                 keypoints = self.object_transforms(keypoints, boxes, transform_randoms)
 
@@ -426,16 +442,79 @@ class DatasetEngine(data.Dataset):
 
         return obj_boxes
 
-    def get_keypoints(self, idx, im_w, im_h, orig_boxes):
+    def valid_crop_uniform(self, data_numpy, valid_frame_num, p_interval, window, thres):
+        # input: C,T,V,M
+        C, T, V, M = data_numpy.shape
+        begin = 0
+        end = valid_frame_num
+        valid_size = end - begin
+
+        # crop
+        if len(p_interval) == 1:
+            p = p_interval[0]
+            cropped_length = np.minimum(np.maximum(int(np.floor(valid_size * p)), thres), valid_size)
+            bias = int((1 - p) * valid_size / 2)
+
+            if cropped_length < window:
+                inds = np.arange(cropped_length)
+            else:
+                bids = np.array([i * cropped_length // window for i in range(window + 1)])
+                bst = bids[:window]
+                inds = bst
+
+            inds = inds + bias
+            data = data_numpy[:, inds, :, :]
+
+        else:
+            p = np.random.rand(1) * (p_interval[1] - p_interval[0]) + p_interval[0]
+            cropped_length = np.minimum(
+                np.maximum(int(np.floor(valid_size * p)), thres), valid_size
+            )  # constraint cropped_length lower bound as 64
+            bias = np.random.randint(0, valid_size - cropped_length + 1)
+
+            if cropped_length < window:
+                inds = np.arange(cropped_length)
+            elif window <= cropped_length < 2 * window:
+                basic = np.arange(window)
+                inds = np.random.choice(window + 1, cropped_length - window, replace=False)
+                offset = np.zeros(window + 1, dtype=np.int64)
+                offset[inds] = 1
+                offset = np.cumsum(offset)
+                inds = basic + offset[:-1]
+            else:
+                bids = np.array([i * cropped_length // window for i in range(window + 1)])
+                bsize = np.diff(bids)
+                bst = bids[:window]
+                offset = np.random.randint(bsize)
+                inds = bst + offset
+
+            inds = inds + bias
+            data = data_numpy[:, inds, :, :]
+            if data.shape[1] == 0:
+                print(cropped_length, bias, valid_size)
+
+        # resize
+        data = torch.tensor(data, dtype=torch.float)
+        index_t = torch.tensor(inds, dtype=torch.float)
+        data = data.permute(2, 3, 0, 1).contiguous().view(V * M, C, len(inds))  # V*M, C, crop_t
+
+        if len(inds) != window:
+            data = F.interpolate(data, size=window, mode="linear", align_corners=False)  # V*M, C, T
+            index_t = F.interpolate(index_t[None, None, :], size=window, mode="linear", align_corners=False).squeeze()
+
+        data = data.contiguous().view(V, M, C, window).permute(2, 3, 0, 1).contiguous().numpy()
+        index_t = 2 * index_t / valid_size - 1
+        return data, index_t.numpy()
+
+    def get_keypoints(self, idx, im_w, im_h, orig_boxes, generate_dataset=False):
         kpts_boxes = self.return_null_box(im_w, im_h)
         video_keypoints_lists, keypoints, boxes, box_score = self.det_keypoints[idx]
 
         all_video_keypoints = []
-        all_video_boxes = []
+        all_video_index_ts = []
         assert len(video_keypoints_lists) != 0
         for video_keypoints_list in video_keypoints_lists:
             all_video_keypoint = []
-            all_video_box = []
             for video_k in video_keypoints_list:
                 video_keypoints = video_k["keypoints"]
                 video_boxes = video_k["bbox"]
@@ -448,7 +527,6 @@ class DatasetEngine(data.Dataset):
                 video_orig_boxes = video_orig_boxes.bbox
 
                 if len(video_box_score) == 0:
-                    all_video_keypoint.append(np.zeros((17, 3)))
                     continue
 
                 video_boxes = np.array(video_boxes)
@@ -459,17 +537,26 @@ class DatasetEngine(data.Dataset):
                 video_keypoints = video_keypoints[idx_to_keep]
                 video_keypoints = video_keypoints.squeeze()
                 all_video_keypoint.append(video_keypoints)
-
-                video_boxes = np.array(video_boxes)
-                video_boxes = video_boxes[idx_to_keep]
-                video_boxes = video_boxes.squeeze()
-                all_video_box.append(video_boxes)
-
+            if len(all_video_keypoint) == 0:
+                if not generate_dataset:
+                    all_video_keypoint = np.zeros((self.frame_span, 17, 3))
+                    index_t = np.arange(self.frame_span)
+                    index_t = 2 * index_t / self.frame_span - 1
+            else:
+                all_video_keypoint = np.array(all_video_keypoint, dtype=np.float32, ndmin=3)  # (T, V, C)
+                if not generate_dataset:
+                    all_video_keypoint = np.transpose(all_video_keypoint, (2, 0, 1))  # (C, T, V)
+                    all_video_keypoint = np.expand_dims(all_video_keypoint, axis=-1)  # (C, T, V, M)
+                    p_interval = [0.95]
+                    all_video_keypoint, index_t = self.valid_crop_uniform(
+                        all_video_keypoint, all_video_keypoint.shape[1], p_interval, self.frame_span, self.frame_span
+                    )  # (C, T, V, M)
+                    all_video_keypoint = np.squeeze(all_video_keypoint, axis=-1)  # (C, T, V)
+                    all_video_keypoint = np.transpose(all_video_keypoint, (1, 2, 0))  # (T, V, C)
             all_video_keypoints.append(all_video_keypoint)
-            all_video_boxes.append(all_video_box)
-
+            all_video_index_ts.append(index_t)
         all_video_keypoints = np.array(all_video_keypoints, dtype=np.float32)
-        all_video_boxes = np.array(all_video_boxes, dtype=np.float32)
+        all_video_index_ts = np.array(all_video_index_ts, dtype=np.float32)
 
         if len(box_score) == 0:
             kpts_boxes = BoxList(
@@ -480,8 +567,8 @@ class DatasetEngine(data.Dataset):
             kpts_boxes.add_field("keypoints", np.zeros((orig_boxes.shape[0], 17, 3)))
             all_video_keypoints = np.repeat(all_video_keypoints, repeats=orig_boxes.shape[0], axis=0)
             kpts_boxes.add_field("video_keypoints", all_video_keypoints)
-            all_video_boxes = np.repeat(all_video_boxes, repeats=orig_boxes.shape[0], axis=0)
-            kpts_boxes.add_field("video_boxes", all_video_boxes)
+            all_video_index_ts = np.repeat(all_video_index_ts, repeats=orig_boxes.shape[0], axis=0)
+            kpts_boxes.add_field("video_intex_ts", all_video_index_ts)
             return kpts_boxes
 
         # Keep only the keypoints with corresponding boxes in the GT
@@ -492,7 +579,7 @@ class DatasetEngine(data.Dataset):
         keypoints = np.array(keypoints)
         keypoints = keypoints[idx_to_keep]
         all_video_keypoints = all_video_keypoints[idx_to_keep]
-        all_video_boxes = all_video_boxes[idx_to_keep]
+        all_video_index_ts = all_video_index_ts[idx_to_keep]
 
         keypoints_boxes_tensor = torch.as_tensor(boxes).reshape(-1, 4)
         kpts_boxes = BoxList(keypoints_boxes_tensor, (im_w, im_h), mode="xyxy")
@@ -501,7 +588,7 @@ class DatasetEngine(data.Dataset):
         kpts_boxes.add_field("scores", scores)
         kpts_boxes.add_field("keypoints", keypoints)
         kpts_boxes.add_field("video_keypoints", all_video_keypoints)
-        kpts_boxes.add_field("video_boxes", all_video_boxes)
+        kpts_boxes.add_field("video_intex_ts", all_video_index_ts)
 
         return kpts_boxes
 
@@ -542,7 +629,7 @@ class DatasetEngine(data.Dataset):
         right_frames = []
         folder_list = np.array(os.listdir(video_folder))
 
-        while cur_t < folder_list.shape[0]:
+        while cur_t <= folder_list.shape[0]:
             if (cur_t - timestamp) > right_span:
                 break
             ## JHMDB
@@ -560,7 +647,7 @@ class DatasetEngine(data.Dataset):
         cur_t = timestamp - 1
         left_frames = []
         while cur_t > 0:
-            if (timestamp - cur_t) > left_span:
+            if (timestamp - cur_t) >= left_span:
                 break
             ## JHMDB
             video_path = os.path.join(video_folder, "{}.png".format(str(cur_t).zfill(5)))
