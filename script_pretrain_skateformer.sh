@@ -3,7 +3,7 @@
 CONFIG_FILE="./config_files/hitnet_pretrain_skateformer.yaml"
 
 i=1
-while [ $i -lt 100 ]
+while [ $i -lt 6 ]
 do
   # 格式化 OUTPUT_DIR 為四位數 (0000 ~ 9999)
   OUTPUT_NUM=$(printf "%02d" $i)
