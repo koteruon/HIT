@@ -80,6 +80,7 @@ def train(
     )
 
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
+    start_val_period = cfg.SOLVER.START_EVAL_PERIOD
     val_period = cfg.SOLVER.EVAL_PERIOD
 
     mem_active = has_memory(cfg.MODEL.HIT_STRUCTURE)
@@ -93,6 +94,7 @@ def train(
         data_loaders_val = []
     # training
     do_train(
+        cfg,
         model,
         data_loader,
         optimizer,
@@ -102,6 +104,7 @@ def train(
         checkpoint_period,
         arguments,
         tblogger,
+        start_val_period,
         val_period,
         dataset_names_val,
         data_loaders_val,
@@ -159,8 +162,6 @@ def main():
         dest="skip_val",
         help="Do not validate during training",
         action="store_true",
-        #
-        default=True,
     )
     parser.add_argument(
         "--transfer",

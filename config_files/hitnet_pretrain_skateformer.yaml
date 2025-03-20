@@ -51,10 +51,10 @@ MODEL:
     num_points: 16
     kernel_size: 7
     num_heads: 32
-    attn_drop: 0.5
+    attn_drop: 0.0 # 0.5 因為pretrain不要drop
     head_drop: 0.0
     rel: True
-    drop_path: 0.2
+    drop_path: 0.0 # 0.2 因為pretrain不要drop
     type_1_size: [4, 4]
     type_2_size: [4, 8]
     type_3_size: [4, 4]
@@ -75,19 +75,21 @@ DATALOADER:
   NUM_WORKERS: 8
   SIZE_DIVISIBILITY: 16
 SOLVER:
-  BASE_LR: 0.0002
+  BASE_LR: 0.0002 # 0.0002
   WARMUP_FACTOR: 0.25
   BIAS_LR_FACTOR: 2
-  IA_LR_FACTOR: 5.0 # 10.0
-  WEIGHT_DECAY: 5e-5 # 1e-7
-  STEPS: (4000, 6000) # (20000, 25000)
-  WARMUP_ITERS: 700
+  IA_LR_FACTOR: 10.0 # 10.0
+  WEIGHT_DECAY: 1e-7 # 1e-7
+  STEPS: (3150, 6150) # len(train_data) = 3000
+  WARMUP_ITERS: 150 # 700
   MAX_ITER: 7000
   CHECKPOINT_PERIOD: 7000
-  EVAL_PERIOD: 25000
+  TARGET_EVAL_MAP: 0.824
+  START_EVAL_PERIOD: 3150 # 3150
+  EVAL_PERIOD: 500 #500
   VIDEOS_PER_BATCH: 8
 TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_with_pretrain_skateformer_20250318_03"
+OUTPUT_DIR: "data/output/hitnet_pose_transformer_with_pretrain_skateformer_20250319_seed_0015"
