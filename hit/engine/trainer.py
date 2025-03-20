@@ -1,5 +1,7 @@
 import datetime
 import logging
+import os
+import sys
 import time
 
 import torch
@@ -11,6 +13,7 @@ from hit.utils.metric_logger import MetricLogger
 
 
 def do_train(
+    cfg,
     model,
     data_loader,
     optimizer,
@@ -20,6 +23,7 @@ def do_train(
     checkpoint_period,
     arguments,
     tblogger,
+    start_val_period,
     val_period,
     dataset_names_val,
     data_loaders_val,
@@ -131,9 +135,25 @@ def do_train(
             arguments.pop("person_pool", None)
             checkpointer.save("model_final", **arguments)
 
-        if dataset_names_val and iteration % val_period == 0:
+        if (
+            dataset_names_val
+            and (iteration % val_period == 0 or iteration == start_val_period)
+            and iteration >= start_val_period
+        ):
             # do validation
-            val_in_train(model, dataset_names_val, data_loaders_val, tblogger, iteration, distributed, mem_active)
+            val_in_train(
+                cfg,
+                model,
+                dataset_names_val,
+                data_loaders_val,
+                tblogger,
+                iteration,
+                start_val_period,
+                distributed,
+                mem_active,
+                checkpointer,
+                arguments,
+            )
             end = time.time()
 
     total_training_time = time.time() - start_training_time
@@ -142,28 +162,39 @@ def do_train(
 
 
 def val_in_train(
+    cfg,
     model,
     dataset_names_val,
     data_loaders_val,
     tblogger,
     iteration,
+    start_val_period,
     distributed,
     mem_active,
+    checkpointer,
+    arguments,
 ):
     if distributed:
         model_val = model.module
     else:
         model_val = model
-    for dataset_name, data_loader_val in zip(dataset_names_val, data_loaders_val):
-        eval_res = inference(
+    checkpointer.save("model_{:07d}".format(iteration), **arguments)
+    output_folders = [None] * len(cfg.DATASETS.TEST)
+    dataset_names = cfg.DATASETS.TEST
+    if cfg.OUTPUT_DIR:
+        for idx, dataset_name in enumerate(dataset_names):
+            output_folder = os.path.join(cfg.OUTPUT_DIR, "inference", f"{dataset_name}_{iteration}")
+            os.makedirs(output_folder, exist_ok=True)
+            output_folders[idx] = output_folder
+    for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names_val, data_loaders_val):
+        avg_precision = inference(
             model_val,
             data_loader_val,
             dataset_name,
             mem_active,
+            output_folder=output_folder,
         )
         synchronize()
-        if tblogger is not None:
-            eval_res, _ = eval_res
-            total_mAP = eval_res["PascalBoxes_Precision/mAP@0.5IOU"]
-            tblogger.add_scalar(dataset_name + "_mAP_0.5IOU", total_mAP, iteration)
+    if avg_precision < cfg.SOLVER.TARGET_EVAL_MAP and start_val_period == iteration:
+        sys.exit()
     model.train()
