@@ -41,16 +41,16 @@ class NpBoxDict(object):
     def generate_range(self, num, frame_span):
         right_span = frame_span // 2
         left_span = frame_span - right_span
-        base = num // 100 * 100  # 取得數字所屬的百位區間
-        tail_digit = num % 100  # 取得尾數
+        base = (num // 100000) * 100000  # 取得數字所屬的百位區間
+        tail_digit = num % 100000  # 取得尾數
 
-        min_val = max(1, tail_digit - left_span + 1)
-        max_val = min(40, tail_digit + right_span)
+        min_val = tail_digit - left_span + 1
+        max_val = tail_digit + right_span
         valid_numbers = np.arange(min_val, max_val + 1) + base
 
         return np.pad(valid_numbers, (0, frame_span - len(valid_numbers)), constant_values=-1).tolist()
 
-    def __init__(self, id_to_box_dict, key_list=None, value_types=[], clip2ann=None, frame_span=None):
+    def __init__(self, id_to_box_dict, key_list=None, value_types=[], frame_span=None):
         value_fields, value_types = list(zip(*value_types))
         # if "keypoints" not in value_fields:
         assert "bbox" in value_fields
@@ -70,16 +70,11 @@ class NpBoxDict(object):
                 video_keypoints_list = []
                 video_key_list = self.generate_range(k, frame_span)
                 for video_k in video_key_list:
-                    video_value_lists = {
-                        field: [] for field in value_fields + ("orig_boxes",) if field != "video_keypoints"
-                    }
+                    video_value_lists = {field: [] for field in value_fields if field != "video_keypoints"}
                     box_infos = video_id_to_box_dict[video_k]
                     for box_info in box_infos:
                         for field in video_value_lists:
-                            if field != "orig_boxes":
-                                video_value_lists[field].append(box_info[field])
-                    if len(clip2ann[video_k]) > 0:
-                        video_value_lists["orig_boxes"] = clip2ann[video_k][0]["bbox"]
+                            video_value_lists[field].append(box_info[field])
                     video_keypoints_list.append(video_value_lists)
 
             box_infos = id_to_box_dict[k]
@@ -167,7 +162,7 @@ class DatasetEngine(data.Dataset):
         if "annotations" in json_dict:
             for ann in json_dict["annotations"]:
                 action_ids = ann["action_ids"]
-                one_hot = np.zeros(21 + 1, dtype=np.bool_)
+                one_hot = np.zeros(8 + 1, dtype=np.bool_)
                 one_hot[action_ids] = True
                 packed_act = one_hot[1:]
                 clip2ann[ann["image_id"]].append(dict(bbox=ann["bbox"], packed_act=packed_act))
@@ -227,7 +222,6 @@ class DatasetEngine(data.Dataset):
                     ("bbox", np.float32),
                     ("score", np.float32),
                 ],
-                clip2ann=clip2ann,
                 frame_span=frame_span,
             )
         else:
@@ -270,95 +264,7 @@ class DatasetEngine(data.Dataset):
 
         self.movies_action_gt = NpInfoDict(movies_action, value_type=np.int32)
 
-        self.make_skateformer_dataset(is_train)
-
-    def make_skateformer_dataset(self, is_train):
-        import json
-        from pathlib import Path
-
-        from tqdm import tqdm
-
-        if is_train:
-            skateformer_dir = Path("skateformer/jhmdb/train")
-        else:
-            skateformer_dir = Path("skateformer/jhmdb/valid")
-
-        if not skateformer_dir.exists():
-            skateformer_dir.mkdir(parents=True, exist_ok=True)
-
-            for idx in tqdm(range(len(self.clips_info))):
-                _, clip_info = self.clips_info[idx]
-
-                # mov_id is the id in self.movie_info
-                mov_id, timestamp = clip_info
-                # movie_id is the human-readable youtube id.
-                movie_id, movie_size = self.movie_info[mov_id]
-                video_data = self._decode_video_data(movie_id, timestamp)
-
-                im_w, im_h = movie_size
-
-                # Note: During training, we only use gt. Thus we should not provide box file,
-                # otherwise we will use only box file instead.
-
-                boxes, packed_act = self.anns[idx]
-
-                boxes_tensor = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)  # guard against no boxes
-                boxes = BoxList(boxes_tensor, (im_w, im_h), mode="xyxy")
-
-                one_hot_label = torch.as_tensor(packed_act, dtype=torch.uint8)
-
-                boxes.add_field("labels", one_hot_label)
-
-                boxes = boxes.clip_to_image(remove_empty=True)
-                # boxes = boxes.clip_to_image(remove_empty=False)
-
-                # Get boxes before the transform
-                # To calculate correct IoU
-                orig_boxes = boxes.bbox
-                # extra fields
-                extras = {}
-
-                if self.transforms is not None:
-                    video_data, boxes, transform_randoms = self.transforms(video_data, boxes)
-                    slow_video, fast_video = video_data
-
-                    objects = None
-                    if self.det_objects is not None:
-                        objects = self.get_objects(idx, im_w, im_h)
-                    if self.object_transforms is not None:
-                        objects = self.object_transforms(objects, boxes, transform_randoms)
-                    keypoints = None
-
-                    if self.det_keypoints is not None:
-                        keypoints = self.get_keypoints(idx, im_w, im_h, orig_boxes, generate_dataset=True)
-                        keypoints.delete_field("video_intex_ts")
-                    if len(keypoints.get_field("video_keypoints").squeeze(0)) > 0:
-                        video_keypoints_ori = keypoints.get_field("video_keypoints").squeeze(0)[:, :, :2].tolist()
-                        if self.object_transforms is not None:
-                            keypoints = self.object_transforms(keypoints, boxes, transform_randoms)
-
-                    extras["movie_id"] = movie_id
-                    extras["timestamp"] = timestamp
-
-                # 製作JSON
-                skateformer_anno_dir = skateformer_dir / movie_id / "annotation"
-                skateformer_anno_dir.mkdir(parents=True, exist_ok=True)
-                skateformer_path = skateformer_anno_dir / (f"{mov_id}_{timestamp}.json")
-
-                skateformer_data = {
-                    "file_name": movie_id,
-                    "length": len(keypoints.get_field("video_keypoints").squeeze(0).tolist()),
-                    "label": int(np.argmax(packed_act)),
-                    "skeletons": keypoints.get_field("video_keypoints").squeeze(0).tolist(),
-                    "skeletons_ori": (
-                        video_keypoints_ori if len(keypoints.get_field("video_keypoints").squeeze(0)) > 0 else []
-                    ),
-                }
-
-                with open(skateformer_path, "w") as f:
-                    json.dump(skateformer_data, f, indent=4)
-
-            raise Exception("Finished")
+        self.use_skateformer = use_skateformer
 
     def __getitem__(self, idx):
         _, clip_info = self.clips_info[idx]
@@ -415,6 +321,8 @@ class DatasetEngine(data.Dataset):
                 video_intex_ts = keypoints.get_field("video_intex_ts")
                 extras["video_intex_ts"] = video_intex_ts
                 keypoints.delete_field("video_intex_ts")
+                if not self.use_skateformer:
+                    keypoints.delete_field("video_keypoints")
             if self.object_transforms is not None:
                 keypoints = self.object_transforms(keypoints, boxes, transform_randoms)
 
@@ -517,26 +425,7 @@ class DatasetEngine(data.Dataset):
         for video_keypoints_list in video_keypoints_lists:
             all_video_keypoint = []
             for video_k in video_keypoints_list:
-                video_keypoints = video_k["keypoints"]
-                video_boxes = video_k["bbox"]
-                video_box_score = video_k["score"]
-                video_orig_boxes = video_k["orig_boxes"]
-                video_orig_boxes_tensor = torch.as_tensor(video_orig_boxes, dtype=torch.float32).reshape(
-                    -1, 4
-                )  # guard against no boxes
-                video_orig_boxes = BoxList(video_orig_boxes_tensor, (im_w, im_h), mode="xyxy")
-                video_orig_boxes = video_orig_boxes.bbox
-
-                if len(video_box_score) == 0:
-                    continue
-
-                video_boxes = np.array(video_boxes)
-                video_orig_boxes = video_orig_boxes.cpu().numpy()
-                idx_to_keep = np.argmax(iou(video_orig_boxes, video_boxes), 1)
-
-                video_keypoints = np.array(video_keypoints)
-                video_keypoints = video_keypoints[idx_to_keep]
-                video_keypoints = video_keypoints.squeeze()
+                video_keypoints = np.squeeze(np.array(video_k["keypoints"][0]))
                 all_video_keypoint.append(video_keypoints)
             if len(all_video_keypoint) == 0:
                 if not generate_dataset:

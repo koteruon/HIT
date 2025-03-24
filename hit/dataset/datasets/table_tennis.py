@@ -93,6 +93,7 @@ class DatasetEngine(data.Dataset):
         key_point_detection=None,
         timestamp=None,
         is_train=False,
+        use_skateformer=False,
     ):
         print(f"===================================================================")
 

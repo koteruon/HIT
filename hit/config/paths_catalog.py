@@ -87,6 +87,27 @@ class DatasetCatalog(object):
             "object_file": "jhmdb/annotations/test_object_detection.json",
             "keypoints_file": "jhmdb/annotations/jhmdb_test_person_bbox_kpts.json",
         },
+        "stroke_postures_train": {
+            "video_root": "stroke_postures/videos",
+            "ann_file": "stroke_postures/annotations/stroke_postures_train_gt.json",
+            "box_file": "",
+            "eval_file_paths": {
+                "labelmap_file": "",
+            },
+            "object_file": "stroke_postures/annotations/stroke_postures_train_object_detection.json",
+            "keypoints_file": "stroke_postures/annotations/stroke_postures_train_person_bbox_kpts.json",
+        },
+        "stroke_postures_val": {
+            "video_root": "stroke_postures/videos",
+            "ann_file": "stroke_postures/annotations/stroke_postures_test_gt.json",
+            "box_file": "",
+            "eval_file_paths": {
+                "csv_gt_file": "",
+                "labelmap_file": "",
+            },
+            "object_file": "stroke_postures/annotations/stroke_postures_test_object_detection.json",
+            "keypoints_file": "stroke_postures/annotations/stroke_postures_test_person_bbox_kpts.json",
+        },
     }
 
     @staticmethod

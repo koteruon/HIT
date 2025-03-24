@@ -97,6 +97,7 @@ class DatasetEngine(data.Dataset):
         keypoints_file=None,
         key_point_detection=None,
         is_train=False,
+        use_skateformer=False,
     ):
         print(f"====================DatasetEngin-ProcessVideo======================")
         processVideosPool = ProcessVideosPool(is_train=is_train)
