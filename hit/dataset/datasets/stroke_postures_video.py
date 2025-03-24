@@ -290,6 +290,8 @@ class DatasetEngine(data.Dataset):
 
             boxes.add_field("labels", one_hot_label)
 
+            if not self.is_train:
+                boxes.add_field("det_score", torch.as_tensor([1.0]))
         else:
             boxes, box_score = self.det_persons[idx]
             boxes_tensor = torch.as_tensor(boxes).reshape(-1, 4)
