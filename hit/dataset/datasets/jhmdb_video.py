@@ -143,6 +143,7 @@ class DatasetEngine(data.Dataset):
         object_transforms=None,
         keypoints_file=None,
         is_train=False,
+        use_skateformer=False,
     ):
         print("loading annotations into memory...")
         tic = time.time()

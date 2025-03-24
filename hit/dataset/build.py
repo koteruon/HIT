@@ -50,6 +50,7 @@ def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True,
 
         args["transforms"] = transforms
         args["is_train"] = is_train
+        args["use_skateformer"] = cfg.MODEL.USE_SKATEFORMER
         # make dataset from factory
         dataset = factory(**args)
         datasets.append(dataset)
