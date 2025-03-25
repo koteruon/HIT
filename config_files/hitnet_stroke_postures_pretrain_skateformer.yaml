@@ -1,7 +1,7 @@
 MODEL:
   WEIGHT: 'data/models/pretrained_models/SlowFast-ResNet50-4x16.pth'
   USE_SKATEFORMER: True
-  SKATEFORMER_WEIGHT: 'data/models/skateformer/jhmdb/20250317/runs-471-83367.pt'
+  SKATEFORMER_WEIGHT: 'data/models/skateformer/stroke_postures/20250325/runs-180-16380.pt'
   BACKBONE:
     CONV_BODY: 'Slowfast-Resnet50'
     FROZEN_BN: True
@@ -96,4 +96,4 @@ TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_stroke_postures_20250325_03"
+OUTPUT_DIR: "data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_20250325_01"

@@ -73,7 +73,12 @@ def prepare_for_stroke_postures_detection(predictions, dataset):
 
         clip_key = make_image_key(movie_name, timestamp)
 
-        ava_results[clip_key] = {"boxes": boxes, "scores": scores, "action_ids": action_ids, "gt_action_id": gt_action_id}
+        ava_results[clip_key] = {
+            "boxes": boxes,
+            "scores": scores,
+            "action_ids": action_ids,
+            "gt_action_id": gt_action_id,
+        }
     return ava_results
 
 
@@ -106,6 +111,7 @@ def write_csv(ava_results, csv_result_file, logger):
             boxes = cur_result["boxes"]
             scores = cur_result["scores"]
             action_ids = cur_result["action_ids"]
+            gt_action_id = cur_result["gt_action_id"]
             assert boxes.shape[0] == scores.shape[0] == action_ids.shape[0]
             for box, score, action_id in zip(boxes, scores, action_ids):
                 box_str = ["{:.5f}".format(cord) for cord in box]
@@ -118,6 +124,7 @@ def write_csv(ava_results, csv_result_file, logger):
                     ]
                     + box_str
                     + [action_id, score_str]
+                    + [gt_action_id]
                 )
     print_time(logger, "write file " + csv_result_file, start)
 
@@ -158,7 +165,7 @@ def write_top1_action_by_frame_confusion_matrix_csv(ava_results, csv_result_file
             movie_name_with_dir = dict_data[movie_name] + "/" + movie_name
 
             # 寫入最高分的行
-            spamwriter.writerow([movie_name_with_dir, timestamp] + box_str + [action_id, score_str])
+            spamwriter.writerow([movie_name_with_dir, timestamp] + box_str + [action_id, score_str] + [gt_action_id])
 
             # 取得 ground truth action_id
             ground_truth_action_id = gt_action_id
