@@ -52,6 +52,7 @@ def prepare_for_stroke_postures_detection(predictions, dataset):
         video_info = dataset.get_video_info(video_id)
         if len(prediction) == 0:
             continue
+        gt_action_id = video_info["gt_action_id"]
         video_width = video_info["width"]
         video_height = video_info["height"]
         prediction = prediction.resize((video_width, video_height))
@@ -72,7 +73,7 @@ def prepare_for_stroke_postures_detection(predictions, dataset):
 
         clip_key = make_image_key(movie_name, timestamp)
 
-        ava_results[clip_key] = {"boxes": boxes, "scores": scores, "action_ids": action_ids}
+        ava_results[clip_key] = {"boxes": boxes, "scores": scores, "action_ids": action_ids, "gt_action_id": gt_action_id}
     return ava_results
 
 
@@ -140,6 +141,7 @@ def write_top1_action_by_frame_confusion_matrix_csv(ava_results, csv_result_file
             boxes = cur_result["boxes"]
             scores = cur_result["scores"]
             action_ids = cur_result["action_ids"]
+            gt_action_id = cur_result["gt_action_id"]
             assert boxes.shape[0] == scores.shape[0] == action_ids.shape[0]
 
             # 找到最高分的索引
@@ -159,7 +161,7 @@ def write_top1_action_by_frame_confusion_matrix_csv(ava_results, csv_result_file
             spamwriter.writerow([movie_name_with_dir, timestamp] + box_str + [action_id, score_str])
 
             # 取得 ground truth action_id
-            ground_truth_action_id = dataset.movies_action_gt.val_arr[dataset.movies_action_gt.convert_key(movie_name)]
+            ground_truth_action_id = gt_action_id
 
             # 更新混淆矩陣
             confusion_matrix[ground_truth_action_id - 1, action_id - 1] += 1
@@ -225,6 +227,7 @@ def write_top1_action_by_video_confusion_matrix_csv(ava_results, csv_result_file
         boxes = cur_result["boxes"]
         scores = cur_result["scores"]
         action_ids = cur_result["action_ids"]
+        gt_action_id = cur_result["gt_action_id"]
         assert boxes.shape[0] == scores.shape[0] == action_ids.shape[0]
 
         # 找到當前 clip_key 中的最高分數及對應索引
@@ -243,7 +246,7 @@ def write_top1_action_by_video_confusion_matrix_csv(ava_results, csv_result_file
             }
 
         # 取得 ground truth action_id
-        ground_truth_action_id = dataset.movies_action_gt.val_arr[dataset.movies_action_gt.convert_key(movie_name)]
+        ground_truth_action_id = gt_action_id
 
         # 更新混淆矩陣
         confusion_matrix[ground_truth_action_id - 1, action_id - 1] += 1

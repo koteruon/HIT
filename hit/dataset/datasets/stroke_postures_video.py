@@ -50,7 +50,7 @@ class NpBoxDict(object):
 
         return np.pad(valid_numbers, (0, frame_span - len(valid_numbers)), constant_values=-1).tolist()
 
-    def __init__(self, id_to_box_dict, key_list=None, value_types=[], frame_span=None):
+    def __init__(self, id_to_box_dict, key_list=None, value_types=[], clip2ann=None, frame_span=None):
         value_fields, value_types = list(zip(*value_types))
         # if "keypoints" not in value_fields:
         assert "bbox" in value_fields
@@ -64,6 +64,8 @@ class NpBoxDict(object):
         value_lists = {field: [] for field in value_fields}
         cur = 0
         pointer_list.append(cur)
+        if "packed_act" in value_fields:
+            self.gt_action_id = {}
         for k in key_list:
             if "video_keypoints" in value_fields:
                 video_id_to_box_dict = defaultdict(list, id_to_box_dict)
@@ -72,6 +74,7 @@ class NpBoxDict(object):
                 for video_k in video_key_list:
                     video_value_lists = {field: [] for field in value_fields if field != "video_keypoints"}
                     box_infos = video_id_to_box_dict[video_k]
+                    assert len(box_infos) > 0
                     for box_info in box_infos:
                         for field in video_value_lists:
                             video_value_lists[field].append(box_info[field])
@@ -81,6 +84,9 @@ class NpBoxDict(object):
             cur += len(box_infos)
             pointer_list.append(cur)
             for box_info in box_infos:
+                if "packed_act" in value_fields:
+                    packed_act = box_info["packed_act"]
+                    self.gt_action_id[k] = np.where(packed_act)[0] + 1
                 for field in value_fields:
                     if field != "video_keypoints":
                         value_lists[field].append(box_info[field])
@@ -113,16 +119,6 @@ class NpBoxDict(object):
 
 
 class DatasetEngine(data.Dataset):
-    def find_best_clip_ids(self, clips_info):
-        clips_info = np.array(clips_info)
-        # 計算 group_id
-        group_ids = clips_info // 10000
-        # 找出所有唯一的 group_id
-        unique_groups = np.unique(group_ids)
-        # 計算每個 group 的中位數，並存成列表
-        medians = [int(np.median(clips_info[group_ids == group])) for group in unique_groups]
-        return medians
-
     def __init__(
         self,
         video_root,
@@ -162,7 +158,7 @@ class DatasetEngine(data.Dataset):
         if "annotations" in json_dict:
             for ann in json_dict["annotations"]:
                 action_ids = ann["action_ids"]
-                one_hot = np.zeros(8 + 1, dtype=np.bool_)
+                one_hot = np.zeros(9 + 1, dtype=np.bool_)
                 one_hot[action_ids] = True
                 packed_act = one_hot[1:]
                 clip2ann[ann["image_id"]].append(dict(bbox=ann["bbox"], packed_act=packed_act))
@@ -242,25 +238,24 @@ class DatasetEngine(data.Dataset):
             clip_id: [
                 self.movie_info.convert_key(clips_info[clip_id][0]),
                 clips_info[clip_id][1],
+                self.anns.gt_action_id[clip_id][0]
             ]
             for clip_id in clip_ids
         }
         self.clips_info = NpInfoDict(clips_info, value_type=np.int32)
 
         ## ground truth
-        clip2ann_gt = defaultdict(list)
-        if "annotations" in json_dict:
-            for ann in json_dict["annotations"]:
-                action_ids = ann["action_ids"]
-                assert len(action_ids) == 1
-                action_id = action_ids.pop()
-                clip2ann_gt[ann["image_id"]].append(action_id)
-
-        movies_action = {}
-        for img in json_dict["images"]:
-            mov = img["movie"]
-            if mov not in movies_action:
-                movies_action[mov] = clip2ann_gt[img["id"]]
+        movies_action = {
+            "backhand_chop_01":[1],
+            "backhand_flick_01":[2],
+            "backhand_push_01":[3],
+            "backhand_topspin_01":[4],
+            "forehand_chop_01":[5],
+            "forehand_drive_01":[6],
+            "forehand_smash_01":[7],
+            "forehand_topspin_01":[8],
+            "background_01": [9],
+        }
 
         self.movies_action_gt = NpInfoDict(movies_action, value_type=np.int32)
 
@@ -270,7 +265,7 @@ class DatasetEngine(data.Dataset):
         _, clip_info = self.clips_info[idx]
 
         # mov_id is the id in self.movie_info
-        mov_id, timestamp = clip_info
+        mov_id, timestamp, _ = clip_info
         # movie_id is the human-readable youtube id.
         movie_id, movie_size = self.movie_info[mov_id]
         video_data = self._decode_video_data(movie_id, timestamp)
@@ -487,11 +482,11 @@ class DatasetEngine(data.Dataset):
     def get_video_info(self, index):
         _, clip_info = self.clips_info[index]
         # mov_id is the id in self.movie_info
-        mov_id, timestamp = clip_info
+        mov_id, timestamp, gt_action_id = clip_info
         # movie_id is the human-readable youtube id.
         movie_id, movie_size = self.movie_info[mov_id]
         w, h = movie_size
-        return dict(width=w, height=h, movie=movie_id, timestamp=timestamp)
+        return dict(width=w, height=h, movie=movie_id, timestamp=timestamp, gt_action_id=gt_action_id)
 
     def load_box_file(self, box_file, score_thresh=0.0):
         import json
