@@ -74,4 +74,4 @@ TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_20250324_seed_0007"
+OUTPUT_DIR: "data/output/hitnet_pose_transformer_20250324_seed_0015"
