@@ -6,7 +6,7 @@ This study pioneers the use of bimodal action recognition for table tennis video
 A YOLOv7-based framework with pose estimation distinguishes ball, player, and table positions, enhancing system speed and accuracy.
 By combining ball trajectories with player actions, the system identifies rally start and end times, embedding results into output videos for easy analysis.
 
-![Table-Tennis-Video-Timeline-Diagram](./picture/Table-Tennis-Referee-System-Using-Multimodal-Deep-Learning/Table-Tennis-Video-Timeline-Diagram.png)
+![Table-Tennis-Video-Timeline-Diagram](./picture/Table-Tennis-Video-Timeline-Diagram.png)
 
 ---
 
@@ -20,7 +20,7 @@ The workflow of this study is as follows:
    The ball trajectory coordinates and the action recognition results are then used to determine the conclusion of a table tennis point.
 3. Finally, the results are integrated and displayed in the output video.
 
-![Method-Flowchart](./picture/Table-Tennis-Referee-System-Using-Multimodal-Deep-Learning/Method-Flowchart.png)
+![Method-Flowchart](./picture/Method-Flowchart.png)
 
 ---
 
@@ -38,4 +38,4 @@ Additionally, we introduce **interaction modules**—**person-to-person**, **per
 These interactions are computed using a **cross-attention mechanism**, followed by **intra-modality aggregation** to refine the extracted features.
 Finally, **temporal interaction** and **feature fusion modules** are applied to integrate information across both time and modalities, resulting in improved action classification accuracy.
 
-![Network-Architecture](./picture/Table-Tennis-Referee-System-Using-Multimodal-Deep-Learning/Network-Architecture.png)
+![Network-Architecture](./picture/Network-Architecture.png)
