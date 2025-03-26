@@ -1,61 +1,41 @@
-# HIT
+# Table Tennis Referee System Using Multimodal Deep Learning
 
+## Abstract
 
-This project is the official implementation of our paper 
-[Holistic Interaction Transformer Network for Action Detection](https://arxiv.org/abs/2210.12686) (**WACV 2023**), authored
-by Gueter Josmy Faure, Min-Hung Chen and Shang-Hong Lai. 
+This study pioneers the use of bimodal action recognition for table tennis video analysis, integrating RGB images and pose data to detect rally events.
+A YOLOv7-based framework with pose estimation distinguishes ball, player, and table positions, enhancing system speed and accuracy.
+By combining ball trajectories with player actions, the system identifies rally start and end times, embedding results into output videos for easy analysis.
 
-### Updates
-- (03/06/2023) We have added the code to train/test on AVA [here](https://github.com/joslefaure/HIT_ava). Any issues about AVA, please open them from the other repo.
+![Table-Tennis-Video-Timeline-Diagram](./picture/Table-Tennis-Referee-System-Using-Multimodal-Deep-Learning/Table-Tennis-Video-Timeline-Diagram.png)
 
+---
 
-## Demo Video
+## Method Flowchart
 
-![output1](https://user-images.githubusercontent.com/84136752/213919371-4a124959-2c2f-4d4c-8b9d-837417b584fc.gif) &nbsp; ![output2](https://user-images.githubusercontent.com/84136752/213919382-f7eb8347-afc0-4e38-adc0-faef8e13edc0.gif) &nbsp; ![output3](https://user-images.githubusercontent.com/84136752/213919453-78c48c77-2fb1-4c96-85e1-06a2fe51e6d6.gif)
+The workflow of this study is as follows:
 
-## Installation
+1. First, object detection is performed on the input video to identify the ball, players, and table, along with human pose estimation.
+   An object detection model is used to predict the bounding boxes for each object, while pose estimation is applied to the players to detect key body joint coordinates.
+2. Next, a bimodal deep learning network is built using these two types of data to perform action recognition for each player.
+   The ball trajectory coordinates and the action recognition results are then used to determine the conclusion of a table tennis point.
+3. Finally, the results are integrated and displayed in the output video.
 
+![Method-Flowchart](./picture/Table-Tennis-Referee-System-Using-Multimodal-Deep-Learning/Method-Flowchart.png)
 
-You need first to install this project, please check [INSTALL.md](INSTALL.md)
+---
 
-## Data Preparation
+## Bimodal-based Action Recognition Model
 
-To do training or inference on J-HMDB, please check [DATA.md](DATA.md)
-for data preparation instructions. Instructions for other datasets coming soon.
+This study aims to detect the start of each point in a table tennis match by identifying the **serve actions**, thereby enabling accurate recognition of players' continuous movements within each frame.
 
-## Model Zoo
+Recent works have leveraged **spatiotemporal convolutional networks** to capture both **spatial** and **temporal motion features** in video frames, enhancing action recognition performance.
+However, these methods often overlook the **interactions between players and surrounding objects**, such as the **ball's movement across the table**, which is vital to the hitting process.
 
-Please see [MODEL_ZOO.md](MODEL_ZOO.md) for downloading models.
+To address this gap, we propose a **dual-modal approach** that incorporates both **player-environment interactions** and **human pose estimation**.
+The model utilizes the **SlowFast network** for feature extraction, processing both **slow** and **fast temporal scales** to capture long- and short-term motion information.
+**Region of Interest (RoI) alignment** is employed to focus on key objects and players by applying the detected bounding boxes.
+Additionally, we introduce **interaction modules**—**person-to-person**, **person-to-object**, and **hands-to-object interactions**—capturing complex relationships between the target objects.
+These interactions are computed using a **cross-attention mechanism**, followed by **intra-modality aggregation** to refine the extracted features.
+Finally, **temporal interaction** and **feature fusion modules** are applied to integrate information across both time and modalities, resulting in improved action classification accuracy.
 
-## Training and Inference
-
-To do training or inference with HIT, please refer to [GETTING_STARTED.md](GETTING_STARTED.md).
-
-
-## Citation
-
-If this project helps you in your research or project, please cite
-this paper:
-
-```
-@InProceedings{Faure_2023_WACV,
-    author    = {Faure, Gueter Josmy and Chen, Min-Hung and Lai, Shang-Hong},
-    title     = {Holistic Interaction Transformer Network for Action Detection},
-    booktitle = {Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV)},
-    month     = {January},
-    year      = {2023},
-    pages     = {3340-3350}
-}
-```
-
-## Acknowledgement
-We are very grateful to the authors of [AlphAction](https://github.com/MVIG-SJTU/AlphAction) for open-sourcing their code from which this repository is heavily sourced. If your find this research useful, please consider citing their paper as well.
-
-```
-@inproceedings{tang2020asynchronous,
-  title={Asynchronous Interaction Aggregation for Action Detection},
-  author={Tang, Jiajun and Xia, Jin and Mu, Xinzhi and Pang, Bo and Lu, Cewu},
-  booktitle={Proceedings of the European conference on computer vision (ECCV)},
-  year={2020}
-}
-```
+![Network-Architecture](./picture/Table-Tennis-Referee-System-Using-Multimodal-Deep-Learning/Network-Architecture.png)
