@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 
 videos_path = "data/stroke_postures/videos"
-output_path = "data/output/hitnet_pose_transformer_stroke_postures_20250325_06/inference/stroke_postures_val_1000"
+output_path = "data/output/hitnet_pose_transformer_stroke_postures_20250326_seed_03/inference/stroke_postures_val_750"
 result_path = os.path.join(output_path, "result_top1_action_by_frame_confusion_matrix_stroke_postures.csv")
 
 

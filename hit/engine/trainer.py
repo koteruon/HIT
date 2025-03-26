@@ -139,6 +139,7 @@ def do_train(
             dataset_names_val
             and (iteration % val_period == 0 or iteration == start_val_period)
             and iteration >= start_val_period
+            and iteration != max_iter
         ):
             # do validation
             val_in_train(
