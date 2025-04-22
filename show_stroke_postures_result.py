@@ -4,10 +4,22 @@ import cv2
 import pandas as pd
 from tqdm import tqdm
 
-videos_path = "data/stroke_postures/videos"
-output_path = "data/output/hitnet_pose_transformer_stroke_postures_20250326_seed_03/inference/stroke_postures_val_750"
+videos_path = "data/stroke_postures/videos_pose_and_seg"
+output_path = "data/draw/hitnet_pose_transformer_stroke_postures_20250330_seed_0024/inference/stroke_postures_val_300"
 result_path = os.path.join(output_path, "result_top1_action_by_frame_confusion_matrix_stroke_postures.csv")
 
+
+stroke_id = {
+    1: "Backhand Chop",
+    2: "Backhand Flick",
+    3: "Backhand Push",
+    4: "Backhand Topspin",
+    5: "Forehand Chop",
+    6: "Forehand Drive",
+    7: "Forehand Smash",
+    8: "Forehand Topspin",
+    9: "Background",
+}
 
 with open(result_path, "r") as file:
     lines = file.readlines()
@@ -34,6 +46,7 @@ df = pd.DataFrame(
         "gt_action_id",
     ],
 )
+df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
 
 # 設定文字顏色
 color_gt = (0, 255, 0)  # 綠色
@@ -59,7 +72,7 @@ for video_dir in videos_dir:
         file_name, file_extension = os.path.splitext(file_name_with_extension)
         timestamp = str(int(file_name)).zfill(4)
         # 根據條件篩選 DataFrame 中的資料
-        filtered_df = df[(df["movie_name_with_dir"] == movie_name_with_dir) & (df["timestamp"] == timestamp)]
+        filtered_df = df[(df["movie_name_with_dir"].str.contains(video_dir)) & (df["timestamp"] == timestamp)]
         if not filtered_df.empty:
             started = True
         if not started:
@@ -75,17 +88,29 @@ for video_dir in videos_dir:
             gt_action_id = filtered_df["gt_action_id"].iloc[0]
 
             # 顯示 gt_action_id (綠色)
-            cv2.putText(image, f"GT: {gt_action_id}", (10, 40), font, font_scale, color_gt, thickness)
+            # cv2.putText(image, f"GT: {gt_action_id}", (10, 40), font, font_scale, color_gt, thickness)
 
             # 顯示 action_id (根據是否相等來選擇顏色)
             if action_id == gt_action_id:
                 action_color = color_gt  # 如果相等，顯示綠色
             else:
                 action_color = color_action  # 如果不相等，顯示紅色
-            cv2.putText(image, f"Action: {action_id}", (10, 80), font, font_scale, action_color, thickness)
+            if int(action_id) != 9:
+                cv2.putText(
+                    image,
+                    f"Stroke Type: {stroke_id[int(action_id)]}",
+                    (10, 40),
+                    font,
+                    font_scale,
+                    action_color,
+                    thickness,
+                )
 
             # 顯示 score_str (黃色)
-            cv2.putText(image, f"Score: {score_str}", (10, 120), font, font_scale, color_score, thickness)
+            # cv2.putText(image, f"Score: {score_str}", (10, 120), font, font_scale, color_score, thickness)
+
+            # 顯示 Frame
+            # cv2.putText(image, f"Frame: {timestamp}", (10, 120), font, font_scale, color_score, thickness)
 
         video_out.write(image)
     video_out.release()

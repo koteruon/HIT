@@ -85,15 +85,15 @@ SOLVER:
   BIAS_LR_FACTOR: 2
   IA_LR_FACTOR: 10.0 # 10.0
   WEIGHT_DECAY: 1e-7 # 1e-7
-  STEPS: (1630, 3100) # len()=11730
-  WARMUP_ITERS: 150
-  MAX_ITER: 3500
-  CHECKPOINT_PERIOD: 3500
-  START_EVAL_PERIOD: 500 # 3150
-  EVAL_PERIOD: 250 #500
+  STEPS: (400, 500) # len()=11730
+  WARMUP_ITERS: 50
+  MAX_ITER: 500
+  CHECKPOINT_PERIOD: 500
+  START_EVAL_PERIOD: 150 # 3150
+  EVAL_PERIOD: 50 #500
   VIDEOS_PER_BATCH: 8
 TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_20250325_01"
+OUTPUT_DIR: "data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_20250422"
