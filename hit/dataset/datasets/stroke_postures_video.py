@@ -200,7 +200,7 @@ class DatasetEngine(data.Dataset):
             self.det_objects = NpBoxDict(
                 imgToObjects,
                 clip_ids,
-                value_types=[("bbox", np.float32), ("score", np.float32)],
+                value_types=[("bbox", np.float32), ("score", np.float32), ("center", np.float32), ("area", np.float32)],
             )
         else:
             self.det_objects = None
@@ -238,7 +238,7 @@ class DatasetEngine(data.Dataset):
             clip_id: [
                 self.movie_info.convert_key(clips_info[clip_id][0]),
                 clips_info[clip_id][1],
-                self.anns.gt_action_id[clip_id][0]
+                self.anns.gt_action_id[clip_id][0],
             ]
             for clip_id in clip_ids
         }
@@ -246,14 +246,14 @@ class DatasetEngine(data.Dataset):
 
         ## ground truth
         movies_action = {
-            "backhand_chop_01":[1],
-            "backhand_flick_01":[2],
-            "backhand_push_01":[3],
-            "backhand_topspin_01":[4],
-            "forehand_chop_01":[5],
-            "forehand_drive_01":[6],
-            "forehand_smash_01":[7],
-            "forehand_topspin_01":[8],
+            "backhand_chop_01": [1],
+            "backhand_flick_01": [2],
+            "backhand_push_01": [3],
+            "backhand_topspin_01": [4],
+            "forehand_chop_01": [5],
+            "forehand_drive_01": [6],
+            "forehand_smash_01": [7],
+            "forehand_topspin_01": [8],
             "background_01": [9],
         }
 
@@ -336,7 +336,7 @@ class DatasetEngine(data.Dataset):
     def get_objects(self, idx, im_w, im_h):
         obj_boxes = self.return_null_box(im_w, im_h)
         if hasattr(self, "det_objects"):
-            boxes, box_score = self.det_objects[idx]
+            boxes, box_score, center, area = self.det_objects[idx]
 
             if len(box_score) == 0:
                 return obj_boxes
@@ -344,7 +344,11 @@ class DatasetEngine(data.Dataset):
             obj_boxes = BoxList(obj_boxes_tensor, (im_w, im_h), mode="xyxy")
 
             scores = torch.as_tensor(box_score)
+            center = torch.as_tensor(center)
+            area = torch.as_tensor(area)
             obj_boxes.add_field("scores", scores)
+            obj_boxes.add_field("center", center)
+            obj_boxes.add_field("area", area)
 
         return obj_boxes
 

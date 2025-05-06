@@ -59,6 +59,8 @@ class MLPFeatureExtractor(nn.Module):
             self.pose_transformer = PoseTransformer()
             # self.pose_transformer = PoseTransformerV2()
 
+        self.data_type = config.DATA_TPYE
+
     def roi_pooling(self, slow_features, fast_features, proposals):
         if slow_features is not None:
             if self.config.MODEL.ROI_ACTION_HEAD.MEAN_BEFORE_POOLER:
@@ -166,9 +168,12 @@ class MLPFeatureExtractor(nn.Module):
                 if self.is_skateformer:
                     self.skateformer = self.skateformer.to(keypoints[0].bbox.device)
                     pose_data = pose_data.permute(3, 1, 2, 0)  # (B, T, V, C) -> (C, T, V, B)
-                    j2b = table_tennis_tools.joint2bone()
-                    pose_data = j2b(pose_data)
-                    pose_data = table_tennis_tools.partition(pose_data)
+                    if self.data_type == "b":
+                        j2b = table_tennis_tools.joint2bone()
+                        pose_data = j2b(pose_data)
+                        pose_data = table_tennis_tools.partition_b(pose_data)
+                    else:
+                        pose_data = table_tennis_tools.partition_j(pose_data)
                     pose_data = pose_data.permute(3, 0, 1, 2).unsqueeze(-1)  # (C, T, V, B) -> (B, C, T, V, M)
                     intex_s = np.vstack([np.array(e) for e in extras["video_intex_ts"]])
                     intex_s = torch.tensor(intex_s).to(keypoints[0].bbox.device)
@@ -202,7 +207,7 @@ class MLPFeatureExtractor(nn.Module):
                 use_penalty,
             )
             # RGB stream
-            ia_feature, res_person, res_object, res_keypoint = self.hit_structure(
+            ia_feature, res_person, res_object, res_keypoint, res_racket = self.hit_structure(
                 person_pooled,
                 proposals,
                 object_pooled,
@@ -210,6 +215,7 @@ class MLPFeatureExtractor(nn.Module):
                 hands_pooled,
                 keypoints,
                 memory_person,
+                None,
                 None,
                 None,
                 phase="rgb",
@@ -225,6 +231,7 @@ class MLPFeatureExtractor(nn.Module):
                 memory_person,
                 res_person,
                 ia_feature,
+                res_racket,
                 phase="pose",
             )
             x_after = self.fusion(x_after, pose_ia_feature, self.config.MODEL.HIT_STRUCTURE.FUSION)

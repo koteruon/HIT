@@ -45,7 +45,7 @@ MODEL:
     MAX_PER_SEC: 5
     DIM_INNER: 1024
     DIM_OUT: 2304
-    I_BLOCK_LIST: ['P', 'O', 'H', 'M', 'P', 'O', 'H', 'M']
+    I_BLOCK_LIST: ['P', 'O', 'H', 'R', 'M', 'P', 'O', 'H', 'R', 'M']
   SKATEFORMER:
     num_classes: 9
     num_people: 1
@@ -96,5 +96,5 @@ TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_20250422"
+OUTPUT_DIR: 'data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_20250422'
 DATA_TPYE: b
