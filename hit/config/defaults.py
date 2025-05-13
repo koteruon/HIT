@@ -267,3 +267,5 @@ _C.TEST.ACTION_THRESH = 0.05
 _C.OUTPUT_DIR = "."
 
 _C.DATA_TPYE = "b"
+
+_C.IS_IA_ACTIVE = True
