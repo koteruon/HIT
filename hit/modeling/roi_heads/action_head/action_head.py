@@ -1,4 +1,5 @@
 import torch
+
 from hit.modeling.utils import prepare_pooled_feature
 from hit.structures.bounding_box import BoxList
 from hit.utils.comm import all_reduce
@@ -34,6 +35,21 @@ class ROIActionHead(torch.nn.Module):
             boxes = extras["current_feat_p"]
             objects = extras["current_feat_o"]
             keypoints = [extras["current_feat_h"], extras["current_feat_pose"]]
+        else:
+            if self.feature_extractor.hit_structure.has_R:
+                racket_feature = []
+                for object_box in objects:
+                    if len(object_box) == 0:
+                        device = slow_features.device
+                        combined = torch.zeros(1, 3, device=device)
+                    else:
+                        center_key = object_box.get_field("center")
+                        area_key = object_box.get_field("area")
+                        combined = torch.cat([center_key, area_key.unsqueeze(-1)], dim=-1)
+                    racket_feature.append(combined)
+            else:
+                racket_feature = None
+            extras["current_feat_racket"] = racket_feature
 
         if self.training:
             proposals = self.loss_evaluator.sample_box(boxes)
@@ -61,7 +77,12 @@ class ROIActionHead(torch.nn.Module):
             else:
                 pose_pooled_feature = prepare_pooled_feature(x_pose, keypoints)
 
-            return [pooled_feature, object_pooled_feature, keypoints_pooled_feature, pose_pooled_feature], {}, {}, {}
+            return (
+                [pooled_feature, object_pooled_feature, keypoints_pooled_feature, pose_pooled_feature, racket_feature],
+                {},
+                {},
+                {},
+            )
 
         action_logits = self.predictor(x)
 
@@ -101,7 +122,7 @@ class ROIActionHead(torch.nn.Module):
             pose_pooled_feature = prepare_pooled_feature(x_pose, keypoints[1])
 
         return (
-            [pooled_feature, object_pooled_feature, keypoints_pooled_feature, pose_pooled_feature],
+            [pooled_feature, object_pooled_feature, keypoints_pooled_feature, pose_pooled_feature, racket_feature],
             loss_dict,
             loss_weight,
             metric_dict,

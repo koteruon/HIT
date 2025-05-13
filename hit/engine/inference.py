@@ -71,6 +71,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             object_feature = [ft.to(cpu_device) for ft in feature[1]]
             hand_feature = [ft.to(cpu_device) for ft in feature[2]]
             poses_feature = [ft.to(cpu_device) for ft in feature[3]]
+            racket_feature = [ft.to(cpu_device) for ft in feature[4]]
         # store person features into memory pool
         for j, (
             movie_id,
@@ -87,6 +88,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             object_feature,
             hand_feature,
             poses_feature,
+            racket_feature,
             [b.extra_fields["det_score"] for b in boxes],
         )
         # break
@@ -109,15 +111,23 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
     results_dict = {}
     logger.info("Stage 2: predicting with extracted feature.")
     start_time = time.time()
-    for movie_ids, timestamps, video_ids, object_feature, hand_feature, poses_feature, det_scores in tqdm(
-        batch_info_list, **extra_args
-    ):
+    for (
+        movie_ids,
+        timestamps,
+        video_ids,
+        object_feature,
+        hand_feature,
+        poses_feature,
+        racket_feature,
+        det_scores,
+    ) in tqdm(batch_info_list, **extra_args):
         current_feat_p = [
             all_feature_pool_p[movie_id, timestamp].to(device) for movie_id, timestamp in zip(movie_ids, timestamps)
         ]
         current_feat_o = [ft_o.to(device) for ft_o in object_feature]
         current_feat_h = [ft_k.to(device) for ft_k in hand_feature]
         current_feat_pose = [ft_k.to(device) for ft_k in poses_feature]
+        current_feat_racket = [ft_k.to(device) for ft_k in racket_feature]
         extras = dict(
             person_pool=all_feature_pool_p,
             movie_ids=movie_ids,
@@ -126,6 +136,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             current_feat_o=current_feat_o,
             current_feat_h=current_feat_h,
             current_feat_pose=current_feat_pose,
+            current_feat_racket=current_feat_racket,
         )
         with torch.no_grad():
             output = model(None, None, None, None, extras=extras, part_forward=1)

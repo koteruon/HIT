@@ -317,20 +317,7 @@ class HITStructure(nn.Module):
 
         if self.has_R:
             if phase == "rgb":
-                racket_key = []
-                for object_box in object_boxes:
-                    if len(object_box) == 0:
-                        device = person.device
-                        combined = torch.zeros(1, 3, device=device)
-                    else:
-                        center_key = object_box.get_field("center")
-                        area_key = object_box.get_field("area")
-                        combined = torch.cat([center_key, area_key.unsqueeze(-1)], dim=-1)
-                    racket_key.append(combined)
-                racket_key = torch.cat(racket_key, dim=0)
-                B, D = racket_key.shape
-                racket_key = racket_key.contiguous().view(B, D, 1, 1, 1)
-                racket_key = separate_roi_per_person(person_boxes, racket_key, object_boxes, self.max_object)
+                racket_key = separate_roi_per_person(person_boxes, racket_feature, object_boxes, self.max_object)
                 racket_key = fuse_batch_num(racket_key)
                 racket_key = racket_key.view(racket_key.shape[0], -1)
                 racket_key = self.racket_linear_projector_rgb(racket_key)

@@ -190,6 +190,14 @@ class MLPFeatureExtractor(nn.Module):
         if part_forward == 0:
             return None, person_pooled, object_pooled, hands_pooled, pose_out
 
+        if extras["current_feat_racket"]:
+            racket_feature = extras["current_feat_racket"]
+            racket_feature = torch.cat(racket_feature, dim=0)
+            B, D = racket_feature.shape
+            racket_feature = racket_feature.contiguous().view(B, D, 1, 1, 1)
+        else:
+            racket_feature = None
+
         x_after = person_pooled
         if ia_active and self.is_ia_active:
             tsfmr = self.hit_structure
@@ -218,7 +226,7 @@ class MLPFeatureExtractor(nn.Module):
                 memory_person,
                 None,
                 None,
-                None,
+                racket_feature,
                 phase="rgb",
             )
             # pose
