@@ -60,6 +60,7 @@ class MLPFeatureExtractor(nn.Module):
             # self.pose_transformer = PoseTransformerV2()
 
         self.data_type = config.DATA_TPYE
+        self.is_ia_active = config.IS_IA_ACTIVE
 
     def roi_pooling(self, slow_features, fast_features, proposals):
         if slow_features is not None:
@@ -190,7 +191,7 @@ class MLPFeatureExtractor(nn.Module):
             return None, person_pooled, object_pooled, hands_pooled, pose_out
 
         x_after = person_pooled
-        if ia_active:
+        if ia_active and self.is_ia_active:
             tsfmr = self.hit_structure
             mem_len = self.config.MODEL.HIT_STRUCTURE.LENGTH
             mem_rate = self.config.MODEL.HIT_STRUCTURE.MEMORY_RATE

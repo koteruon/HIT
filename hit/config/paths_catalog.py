@@ -108,6 +108,27 @@ class DatasetCatalog(object):
             "object_file": "stroke_postures/annotations/stroke_postures_test_object_detection.json",
             "keypoints_file": "stroke_postures/annotations/stroke_postures_test_person_bbox_kpts.json",
         },
+        "nw_ucla_train": {
+            "video_root": "nw_ucla/multiview_action_rgb_only_rename",
+            "ann_file": "nw_ucla/annotations/nw_ucla_train_gt.json",
+            "box_file": "",
+            "eval_file_paths": {
+                "labelmap_file": "",
+            },
+            "object_file": "nw_ucla/annotations/nw_ucla_train_object_detection.json",
+            "keypoints_file": "nw_ucla/annotations/nw_ucla_train_person_bbox_kpts.json",
+        },
+        "nw_ucla_val": {
+            "video_root": "nw_ucla/multiview_action_rgb_only_rename",
+            "ann_file": "nw_ucla/annotations/nw_ucla_test_gt.json",
+            "box_file": "",
+            "eval_file_paths": {
+                "csv_gt_file": "",
+                "labelmap_file": "",
+            },
+            "object_file": "nw_ucla/annotations/nw_ucla_test_object_detection.json",
+            "keypoints_file": "nw_ucla/annotations/nw_ucla_test_person_bbox_kpts.json",
+        },
     }
 
     @staticmethod
