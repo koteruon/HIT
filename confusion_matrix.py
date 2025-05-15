@@ -207,3 +207,20 @@ raw_text = """
 """
 
 generate_confusion_matrix(raw_text, "hit_add_skateformer.png")
+
+# ---------------------------------------HIT add skateformer and racket info -------------------------------------------------
+
+# 貼上你的混淆矩陣文字
+raw_text = """
+266,  0,  0,  0,  0,  0,  0,  0,  9
+  0,256,  0,  0,  0,  0,  0,  0,  8
+  0,  0,387,  0,  0,  0,  0,  0, 23
+  0,  0,  0,230,  0,  0,  0,  0,  5
+  0,  0,  0,  0,289,  0,  0,  0, 16
+  0,  0,  0,  0,  0,150,  0,  0,  5
+  0,  0,  0,  0,  0,  0,208,  0, 15
+  0,  0,  0,  0,  0,  0,  0,382,  4
+ 28, 10, 17,  6,  4,  7,  0, 28,3820
+"""
+
+generate_confusion_matrix(raw_text, "hit_add_skateformer_and_racket_info.png")
