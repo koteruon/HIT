@@ -83,6 +83,31 @@ def generate_confusion_matrix(raw_text, save_file_name):
         "F1-Score": np.mean(f1_no_bg),
     }
 
+    # 每一類別的 Precision / Recall / F1
+    class_data = []
+    for i in range(num_classes):
+        class_data.append(
+            [
+                f"{i+1}",
+                f"{precision[i]:.3f}",
+                f"{recall[i]:.3f}",
+                f"{f1[i]:.3f}",
+            ]
+        )
+    class_column_labels = ["Class", "Precision", "Recall", "F1-Score"]
+
+    # 建立新的表格放在主圖下方
+    table = plt.table(
+        cellText=class_data,
+        colLabels=class_column_labels,
+        cellLoc="center",
+        loc="bottom",
+        bbox=[-0.25, -1.2, 1.4, 0.9],  # 視圖高度可調整
+        edges="closed",
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(16)
+
     # 準備表格資料
     table_data = [
         ["Average (w/ bg)", f"{avg_all['Precision']:.3f}", f"{avg_all['Recall']:.3f}", f"{avg_all['F1-Score']:.3f}"],
@@ -96,17 +121,16 @@ def generate_confusion_matrix(raw_text, save_file_name):
     column_labels = ["Range", "Precision", "Recall", "F1-Score"]
 
     # ---- 建立表格並放置在圖片下方 ----
-    table = plt.table(
+    table2 = plt.table(
         cellText=table_data,
         colLabels=column_labels,
         cellLoc="center",
         loc="bottom",
-        bbox=[-0.25, -0.55, 1.4, 0.25],  # [x, y, width, height]，視圖高度而定
+        bbox=[-0.25, -1.5, 1.4, 0.25],  # [x, y, width, height]，視圖高度而定
         edges="closed",
     )
-
-    table.auto_set_font_size(False)
-    table.set_fontsize(16)
+    table2.auto_set_font_size(False)
+    table2.set_fontsize(16)
 
     # 儲存圖片
     plt.savefig(os.path.join(root_path, save_file_name), dpi=300, bbox_inches="tight")
