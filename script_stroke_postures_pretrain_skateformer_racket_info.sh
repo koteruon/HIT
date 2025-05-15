@@ -2,7 +2,7 @@
 
 CONFIG_FILE="./config_files/hitnet_stroke_postures_pretrain_skateformer_racket_info_j.yaml"
 
-i=2
+i=4
 while [ $i -lt 100 ]
 do
   # 格式化 OUTPUT_DIR 為四位數 (0000 ~ 9999)
