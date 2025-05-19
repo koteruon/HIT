@@ -2,9 +2,9 @@ from hit.dataset import datasets
 
 # from .nw_ucla import nw_ucla_evaluation
 
-from .jhmdb import jhmdb_evaluation
+# from .jhmdb import jhmdb_evaluation
 
-# from .stroke_postures import stroke_postures_evaluation
+from .stroke_postures import stroke_postures_evaluation
 
 
 # from .table_tennis import table_tennis_evaluation
@@ -27,8 +27,8 @@ def evaluate(dataset, predictions, output_folder, **kwargs):
     if isinstance(dataset, datasets.DatasetEngine):
         # return ava_evaluation(**args)
         # return table_tennis_evaluation(**args)
-        return jhmdb_evaluation(**args)
-        # return stroke_postures_evaluation(**args)
+        # return jhmdb_evaluation(**args)
+        return stroke_postures_evaluation(**args)
         # return nw_ucla_evaluation(**args)
     else:
         dataset_name = dataset.__class__.__name__
