@@ -1,7 +1,5 @@
 MODEL:
   WEIGHT: 'data/models/pretrained_models/SlowFast-ResNet50-4x16.pth'
-  USE_SKATEFORMER: True
-  SKATEFORMER_WEIGHT: 'data/models/skateformer/stroke_postures/20250423/runs-186-2790.pt'
   BACKBONE:
     CONV_BODY: 'Slowfast-Resnet50'
     FROZEN_BN: True
@@ -27,10 +25,10 @@ MODEL:
     POOLER_RESOLUTION: 7
     POOLER_SCALE: 0.0625
     POOLER_SAMPLING_RATIO: 0
-    NUM_CLASSES: 9
+    NUM_CLASSES: 21
     PROPOSAL_PER_CLIP: 10
     DROPOUT_RATE: 0.2
-    NUM_PERSON_MOVEMENT_CLASSES: 9
+    NUM_PERSON_MOVEMENT_CLASSES: 21
   HIT_STRUCTURE:
     ACTIVE: True
     STRUCTURE: 'hitnet'
@@ -39,34 +37,14 @@ MODEL:
     TEMPORAL_POSITION: True
     USE_ZERO_INIT_CONV: True
     LAYER_NORM: True
-    MAX_PERSON: 1
-    MAX_HAND: 2
-    MAX_OBJECT: 1
+    MAX_PERSON: 25
+    MAX_HAND: 10
+    MAX_OBJECT: 5
     MAX_PER_SEC: 5
     DIM_INNER: 1024
     DIM_OUT: 2304
     I_BLOCK_LIST: ['P', 'O', 'H', 'M', 'P', 'O', 'H', 'M']
-  SKATEFORMER:
-    num_classes: 9
-    num_people: 1
-    num_points: 16
-    kernel_size: 7
-    num_heads: 32
-    attn_drop: 0.0 # 0.5 因為pretrain不要drop
-    head_drop: 0.0
-    rel: True
-    drop_path: 0.0 # 0.2 因為pretrain不要drop
-    type_1_size: [4, 4]
-    type_2_size: [4, 8]
-    type_3_size: [4, 4]
-    type_4_size: [4, 8]
-    mlp_ratio: 4.0
-    index_t: True
 INPUT:
-  # MIN_SIZE_TRAIN: 540
-  # MAX_SIZE_TRAIN: 960
-  # MIN_SIZE_TEST: 540
-  # MAX_SIZE_TEST: 960
   FRAME_NUM: 32
   FRAME_SAMPLE_RATE: 1
   TAU: 4
@@ -74,8 +52,8 @@ INPUT:
   SLOW_JITTER: True
   COLOR_JITTER: True
 DATASETS:
-  TRAIN: ("stroke_postures_train",)
-  TEST: ("stroke_postures_val",)
+  TRAIN: ("jhmdb_train",)
+  TEST: ("jhmdb_val",)
 DATALOADER:
   NUM_WORKERS: 8
   SIZE_DIVISIBILITY: 16
@@ -85,16 +63,17 @@ SOLVER:
   BIAS_LR_FACTOR: 2
   IA_LR_FACTOR: 10.0 # 10.0
   WEIGHT_DECAY: 1e-7 # 1e-7
-  STEPS: (400, 500) # len()=11730
-  WARMUP_ITERS: 50
-  MAX_ITER: 500
-  CHECKPOINT_PERIOD: 500
-  START_EVAL_PERIOD: 450 # 3150
-  EVAL_PERIOD: 50 #500
+  STEPS: (3150, 6150) # len(train_data) = 2839
+  WARMUP_ITERS: 150 # 700
+  MAX_ITER: 7000
+  CHECKPOINT_PERIOD: 7000
+  # TARGET_EVAL_MAP: 0.823
+  START_EVAL_PERIOD: 6000 # 3150
+  EVAL_PERIOD: 500 #500
   VIDEOS_PER_BATCH: 8
 TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250519_seed_0002"
-DATA_TPYE: j
+OUTPUT_DIR: "data/output/hitnet_pose_transformer_only_rgb_20250518_seed_0012"
+IS_IA_ACTIVE: False

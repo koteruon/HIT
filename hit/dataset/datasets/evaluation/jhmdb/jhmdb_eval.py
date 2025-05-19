@@ -155,11 +155,13 @@ def write_top1_action_by_frame_confusion_matrix_csv(ava_results, csv_result_file
             score_str = "{:.5f}".format(score)
             movie_name_with_dir = dict_data[movie_name] + "/" + movie_name
 
-            # 寫入最高分的行
-            spamwriter.writerow([movie_name_with_dir, timestamp] + box_str + [action_id, score_str])
-
             # 取得 ground truth action_id
             ground_truth_action_id = dataset.movies_action_gt.val_arr[dataset.movies_action_gt.convert_key(movie_name)]
+
+            # 寫入最高分的行
+            spamwriter.writerow(
+                [movie_name_with_dir, timestamp] + box_str + [action_id, score_str, ground_truth_action_id[0]]
+            )
 
             # 更新混淆矩陣
             confusion_matrix[ground_truth_action_id - 1, action_id - 1] += 1

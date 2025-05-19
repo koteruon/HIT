@@ -71,7 +71,7 @@ def compute_on_dataset_2stage(model, data_loader, device, logger):
             object_feature = [ft.to(cpu_device) for ft in feature[1]]
             hand_feature = [ft.to(cpu_device) for ft in feature[2]]
             poses_feature = [ft.to(cpu_device) for ft in feature[3]]
-            racket_feature = [ft.to(cpu_device) for ft in feature[4]]
+            racket_feature = [ft.to(cpu_device) for ft in feature[4]] if feature[4] is not None else []
         # store person features into memory pool
         for j, (
             movie_id,

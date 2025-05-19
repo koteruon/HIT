@@ -28,6 +28,7 @@ MODEL:
     NUM_CLASSES: 21
     PROPOSAL_PER_CLIP: 10
     DROPOUT_RATE: 0.2
+    NUM_PERSON_MOVEMENT_CLASSES: 21
   HIT_STRUCTURE:
     ACTIVE: True
     STRUCTURE: 'hitnet'
@@ -74,4 +75,4 @@ TEST:
   BOX_THRESH: 0.
   ACTION_THRESH: 0.
   VIDEOS_PER_BATCH: 8
-OUTPUT_DIR: "data/output/hitnet_pose_transformer_20250508"
+OUTPUT_DIR: "data/output/hitnet_pose_transformer_20250324_seed_0014"

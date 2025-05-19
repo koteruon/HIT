@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from upper_bound_cal import evaluate_fusion_upper_bound
 
 # 自訂類別名稱對照表（可修改）
 class_names_dict = {
@@ -20,8 +21,14 @@ class_names_dict = {
 root_path = "confusion_matrix"
 os.makedirs(root_path, exist_ok=True)
 
+show_table = True
 
-def generate_confusion_matrix(raw_text, save_file_name):
+
+def generate_confusion_matrix(raw_text, save_file_name, plt_title, is_show_upper_bound=False, a_file=None, b_file=None):
+    if is_show_upper_bound:
+        upper_result = evaluate_fusion_upper_bound(a_file, b_file)
+        upper_map = {entry["class"]: entry for entry in upper_result}
+
     # 轉換為 numpy 矩陣
     conf_mat = np.array([list(map(int, line.strip().split(","))) for line in raw_text.strip().splitlines()])
 
@@ -49,7 +56,7 @@ def generate_confusion_matrix(raw_text, save_file_name):
 
     plt.xlabel("Predicted Label", fontsize=16)
     plt.ylabel("True Label", fontsize=16)
-    plt.title("Confusion Matrix (Color = Ratio, Value = Count)", fontsize=18)
+    plt.title(f"{plt_title} (Color = Ratio, Value = Count)", fontsize=18)
 
     plt.xticks(rotation=45, ha="right", fontsize=14)
     plt.yticks(fontsize=14)
@@ -85,7 +92,19 @@ def generate_confusion_matrix(raw_text, save_file_name):
 
     # 每一類別的 Precision / Recall / F1
     class_data = []
+    text_colors = []
     for i in range(num_classes):
+        precision_color = "black"
+        recall_color = "black"
+        f1_color = "black"
+        if is_show_upper_bound:
+            upper = upper_map[i + 1]
+            if precision[i] > upper["precision_upper"]:
+                precision_color = "red"
+            if recall[i] > upper["recall_upper"]:
+                recall_color = "red"
+            if f1[i] > upper["f1_upper"]:
+                f1_color = "red"
         class_data.append(
             [
                 f"{i+1}",
@@ -94,19 +113,25 @@ def generate_confusion_matrix(raw_text, save_file_name):
                 f"{f1[i]:.3f}",
             ]
         )
+        text_colors.append(["black", precision_color, recall_color, f1_color])
     class_column_labels = ["Class", "Precision", "Recall", "F1-Score"]
 
     # 建立新的表格放在主圖下方
-    table = plt.table(
-        cellText=class_data,
-        colLabels=class_column_labels,
-        cellLoc="center",
-        loc="bottom",
-        bbox=[-0.25, -1.2, 1.4, 0.9],  # 視圖高度可調整
-        edges="closed",
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(16)
+    if show_table:
+        table = plt.table(
+            cellText=class_data,
+            colLabels=class_column_labels,
+            cellLoc="center",
+            loc="bottom",
+            bbox=[-0.25, -1.2, 1.4, 0.9],  # 視圖高度可調整
+            edges="closed",
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(16)
+
+        for i, row_colors in enumerate(text_colors, start=1):
+            for j, color in enumerate(row_colors):
+                table[(i, j)].set_text_props(color=color)
 
     # 準備表格資料
     table_data = [
@@ -121,19 +146,47 @@ def generate_confusion_matrix(raw_text, save_file_name):
     column_labels = ["Range", "Precision", "Recall", "F1-Score"]
 
     # ---- 建立表格並放置在圖片下方 ----
-    table2 = plt.table(
-        cellText=table_data,
-        colLabels=column_labels,
-        cellLoc="center",
-        loc="bottom",
-        bbox=[-0.25, -1.5, 1.4, 0.25],  # [x, y, width, height]，視圖高度而定
-        edges="closed",
-    )
-    table2.auto_set_font_size(False)
-    table2.set_fontsize(16)
+    if show_table:
+        table2 = plt.table(
+            cellText=table_data,
+            colLabels=column_labels,
+            cellLoc="center",
+            loc="bottom",
+            bbox=[-0.25, -1.5, 1.4, 0.25],  # [x, y, width, height]，視圖高度而定
+            edges="closed",
+        )
+        table2.auto_set_font_size(False)
+        table2.set_fontsize(16)
+
+    if show_table:
+        if is_show_upper_bound:
+            column_labels = ["Class", "TP(A)", "TP(A or B)", "FP", "FN", "Precision ↑", "Recall ↑", "F1-score ↑"]
+            cell_text = [
+                [
+                    str(entry["class"]),
+                    str(entry["tp_a"]),
+                    str(entry["tp_total"]),
+                    str(entry["fp"]),
+                    str(entry["fn"]),
+                    f"{entry['precision_upper']:.3f}",
+                    f"{entry['recall_upper']:.3f}",
+                    f"{entry['f1_upper']:.3f}",
+                ]
+                for entry in upper_result
+            ]
+            table3 = plt.table(
+                cellText=cell_text,
+                colLabels=column_labels,
+                cellLoc="center",
+                loc="bottom",
+                bbox=[-0.25, -2.5, 1.4, 0.9],  # 放在最下方
+                edges="closed",
+            )
+            table3.auto_set_font_size(False)
+            table3.set_fontsize(16)
 
     # 儲存圖片
-    plt.savefig(os.path.join(root_path, save_file_name), dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join(root_path, save_file_name), dpi=600, bbox_inches="tight")
     plt.close()
 
     print(f"已儲存混淆矩陣圖為 {os.path.join(root_path, save_file_name)}")
@@ -154,7 +207,7 @@ raw_text = """
  37,202, 70, 27, 11, 29,  0,126,3418
 """
 
-generate_confusion_matrix(raw_text, "hit_only_rgb.png")
+generate_confusion_matrix(raw_text, "hit_only_rgb.png", "SlowFast networks Confusion Matrix")
 
 # ---------------------------------------HIT add single frame pose-------------------------------------------------
 
@@ -171,7 +224,7 @@ raw_text = """
  71,152, 26,118,119,  8,  1, 58,3367
 """
 
-generate_confusion_matrix(raw_text, "hit_add_single_frame_pose.png")
+generate_confusion_matrix(raw_text, "hit_add_single_frame_pose.png", "HIT network Confusion Matrix")
 
 
 # --------------------------------------- skateformer -------------------------------------------------
@@ -188,7 +241,7 @@ raw_text = """
   0,  0,  0,  0,  0,  0,  0,370, 16
   0, 33,  0,  2, 27, 22,  2, 43,3791
 """
-generate_confusion_matrix(raw_text, "skateformer.png")
+generate_confusion_matrix(raw_text, "skateformer.png", "SkateFormer Confusion Matrix")
 
 
 # ---------------------------------------HIT add skateformer -------------------------------------------------
@@ -206,7 +259,25 @@ raw_text = """
   9, 59,  8, 30,  5,  7,  0, 16,3786
 """
 
-generate_confusion_matrix(raw_text, "hit_add_skateformer.png")
+a_file = "data/bast/hitnet_pose_transformer_stroke_postures_joint_only_rgb_20250511_seed_0004/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
+b_file = "data/bast/stroke_postures/SkateFormer_j_2D_20250423/runs-180-16380_top1f.csv"
+
+# generate_confusion_matrix(
+#     raw_text,
+#     "hit_add_skateformer.png",
+#     "Our proposed Confusion Matrix",
+#     is_show_upper_bound=True,
+#     a_file=a_file,
+#     b_file=b_file,
+# )
+generate_confusion_matrix(
+    raw_text,
+    "hit_add_skateformer.png",
+    "Our proposed (w/o racket info) Confusion Matrix",
+    is_show_upper_bound=True,
+    a_file=a_file,
+    b_file=b_file,
+)
 
 # ---------------------------------------HIT add skateformer and racket info -------------------------------------------------
 
@@ -223,4 +294,6 @@ raw_text = """
  28, 10, 17,  6,  4,  7,  0, 28,3820
 """
 
-generate_confusion_matrix(raw_text, "hit_add_skateformer_and_racket_info.png")
+generate_confusion_matrix(
+    raw_text, "hit_add_skateformer_and_racket_info.png", "Our proposed (w/ racket info) Confusion Matrix"
+)

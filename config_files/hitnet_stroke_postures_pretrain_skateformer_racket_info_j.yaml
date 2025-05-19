@@ -1,7 +1,7 @@
 MODEL:
   WEIGHT: 'data/models/pretrained_models/SlowFast-ResNet50-4x16.pth'
   USE_SKATEFORMER: True
-  SKATEFORMER_WEIGHT: 'data/models/skateformer/stroke_postures/20250424/runs-180-16380.pt'
+  SKATEFORMER_WEIGHT: 'data/models/skateformer/stroke_postures/20250423/runs-186-2790.pt'
   BACKBONE:
     CONV_BODY: 'Slowfast-Resnet50'
     FROZEN_BN: True
