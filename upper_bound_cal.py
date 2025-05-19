@@ -125,7 +125,7 @@ if __name__ == "__main__":
     # a_file = "data/bast/hitnet_pose_transformer_stroke_postures_joint_only_rgb_20250511_seed_0004/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
     # b_file = "data/bast/stroke_postures/SkateFormer_j_2D_20250423/runs-180-16380_top1f.csv"
 
-    a_file = "data/bast/hitnet_pose_transformer_only_rgb_20250518_seed_0009/inference/jhmdb_val/result_top1_action_by_frame_confusion_matrix_jhmdb.csv"
+    a_file = "data/output/hitnet_pose_transformer_only_rgb_20250518_seed_0012/inference/jhmdb_val/result_top1_action_by_frame_confusion_matrix_jhmdb.csv"
     b_file = "data/bast/jhmdb/SkateFormer_j_2D_20250518_seed_09/runs-92-16284_top1f.csv"
 
     evaluate_fusion_upper_bound(a_file, b_file)
