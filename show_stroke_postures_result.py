@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 
 videos_path = "data/stroke_postures/videos_pose_and_seg"
-output_path = "data/draw/hitnet_pose_transformer_stroke_postures_20250330_seed_0024/inference/stroke_postures_val_300"
+output_path = "data/draw/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250424_seed_0018/inference/stroke_postures_val_450"
 result_path = os.path.join(output_path, "result_top1_action_by_frame_confusion_matrix_stroke_postures.csv")
 
 
@@ -95,7 +95,7 @@ for video_dir in videos_dir:
                 action_color = color_gt  # 如果相等，顯示綠色
             else:
                 action_color = color_action  # 如果不相等，顯示紅色
-            if int(action_id) != 9:
+            if int(action_id) != 9 or int(gt_action_id) != 9:
                 cv2.putText(
                     image,
                     f"Stroke Type: {stroke_id[int(action_id)]}",
