@@ -10,7 +10,7 @@ do
 
   # 修改 OUTPUT_DIR 的最後數字
   # sed -i "s|OUTPUT_DIR: .*|OUTPUT_DIR: \"data/output/hitnet_pose_transformer_with_pretrain_skateformer_20250318_${OUTPUT_NUM}\"|" "$CONFIG_FILE"
-  sed -i "s|OUTPUT_DIR: .*|OUTPUT_DIR: \"data/output/hitnet_pose_transformer_with_pretrain_skateformer_20250319_seed_${OUTPUT_NUM}\"|" "$CONFIG_FILE"
+  sed -i "s|OUTPUT_DIR: .*|OUTPUT_DIR: \"data/output/hitnet_pose_transformer_with_pretrain_skateformer_20250521_seed_${OUTPUT_NUM}\"|" "$CONFIG_FILE"
 
   # 執行 python 指令，seed 直接使用數值格式
   python train_net.py --config-file "$CONFIG_FILE" --seed $i

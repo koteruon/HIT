@@ -2,7 +2,7 @@
 
 CONFIG_FILE="./config_files/hitnet_only_rgb.yaml"
 
-i=11
+i=13
 while [ $i -lt 10000 ]
 do
   # 格式化 OUTPUT_DIR 為四位數 (0000 ~ 9999)
