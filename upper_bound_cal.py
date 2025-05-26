@@ -4,20 +4,22 @@ from collections import defaultdict
 import numpy as np
 
 
-def evaluate_fusion_upper_bound(a_file, b_file, show_compare=False):
-    def read_method_instances(filepath, method):
-        instances = {}
-        with open(filepath, "r", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            for row in reader:
-                if not row or not row[0].startswith("data/"):
-                    continue
-                key = f"{row[0]},{row[1]}"
-                pred = int(row[-3])
-                gt = int(row[-1])
-                instances[key] = {f"pred_{method}": pred, "gt": gt}
-        return instances
+def read_method_instances(filepath, method):
+    instances = {}
+    with open(filepath, "r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row or not row[0].startswith("data/"):
+                continue
+            key = f"{row[0]},{row[1]}"
+            frame_number = int(row[1])
+            pred = int(row[-3])
+            gt = int(row[-1])
+            instances[key] = {"frame": frame_number, f"pred_{method}": pred, "gt": gt}
+    return instances
 
+
+def evaluate_fusion_upper_bound(a_file, b_file, show_compare=False):
     a_instances = read_method_instances(a_file, "a")
     b_instances = read_method_instances(b_file, "b")
 
