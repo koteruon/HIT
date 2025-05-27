@@ -4,8 +4,8 @@ import cv2
 import pandas as pd
 from tqdm import tqdm
 
-videos_path = "data/stroke_postures/videos_pose_and_seg"
-output_path = "data/draw/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250424_seed_0018/inference/stroke_postures_val_450"
+videos_path = "data/stroke_postures/all_videos_pose_and_seg"
+output_path = "data/draw/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_joint_20250514_seed_0008/inference/stroke_postures_val"
 result_path = os.path.join(output_path, "result_top1_action_by_frame_confusion_matrix_stroke_postures.csv")
 
 
@@ -99,11 +99,13 @@ for video_dir in videos_dir:
                 cv2.putText(
                     image,
                     f"Stroke Type: {stroke_id[int(action_id)]}",
-                    (10, 40),
+                    # (10, 40),
+                    (10, 340),
                     font,
                     font_scale,
                     action_color,
                     thickness,
+                    lineType=cv2.LINE_AA,
                 )
 
             # 顯示 score_str (黃色)
