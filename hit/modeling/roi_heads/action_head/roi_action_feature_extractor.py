@@ -166,9 +166,9 @@ class MLPFeatureExtractor(nn.Module):
                 if self.is_skateformer:
                     self.skateformer = self.skateformer.to(keypoints[0].bbox.device)
                     pose_data = pose_data.permute(3, 1, 2, 0)  # (B, T, V, C) -> (C, T, V, B)
-                    j2b = table_tennis_tools.joint2bone()
-                    pose_data = j2b(pose_data)
-                    pose_data = table_tennis_tools.partition(pose_data)
+                    # j2b = table_tennis_tools.joint2bone()
+                    # pose_data = j2b(pose_data)
+                    pose_data = table_tennis_tools.partition_j(pose_data)
                     pose_data = pose_data.permute(3, 0, 1, 2).unsqueeze(-1)  # (C, T, V, B) -> (B, C, T, V, M)
                     intex_s = np.vstack([np.array(e) for e in extras["video_intex_ts"]])
                     intex_s = torch.tensor(intex_s).to(keypoints[0].bbox.device)
