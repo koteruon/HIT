@@ -13,8 +13,8 @@ root_path = "error_heatmap"
 os.makedirs(root_path, exist_ok=True)
 
 
-def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name):
-    normalized_length = 30
+def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name, title):
+    normalized_length = 31
     video_names = []
     video_normalized_errors = []
 
@@ -44,14 +44,14 @@ def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name
             error_seq = np.zeros(length)
             for i in range(length):
                 frame = start + i
-                key = f"data/stroke_postures/videos/{video_name}_01,{frame}"
+                key = f"data/stroke_postures/videos/{video_name}_01,{frame:04d}"
                 if key in a_instances:
                     is_save = True
                     pred = a_instances[key]["pred_a"]
                     gt = a_instances[key]["gt"]
                     error_seq[i] = 0 if pred == gt else 1
 
-            # 差值為 30 格
+            # 差值為 31 格
             if is_save:
                 # 計算並儲存該段長度
                 total_length += length
@@ -69,22 +69,21 @@ def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name
             video_normalized_errors.append(np.mean(segments, axis=0))
 
     print("\n各影片平均 frame 數：")
-    total_frames = 0
-    total_segments = 0
+    avg_list = []
+
     for vname in video_names:
         total = per_video_lengths.get(vname, 0)
         count = per_video_counts.get(vname, 0)
         avg = total / count if count > 0 else 0
         print(f"  {vname:25s} 平均長度: {avg:.2f} ({count} 段)")
+        avg_list.append(avg)
 
-        total_frames += total
-        total_segments += count
-
-    if total_segments > 0:
-        overall_avg = total_frames / total_segments
-        print(f"\n所有段落平均長度（frame）: {overall_avg:.2f}")
+    # 平均每部影片的平均長度
+    if avg_list:
+        overall_avg = sum(avg_list) / len(avg_list)
+        print(f"\n所有影片的平均『平均長度』: {overall_avg:.2f}")
     else:
-        print("\n無有效段落資料")
+        print("\n無有效影片資料")
 
     # 繪圖
     error_matrix = np.array(video_normalized_errors)
@@ -98,9 +97,9 @@ def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name
         xticklabels=[f"{i+1}" for i in range(normalized_length)],
         yticklabels=[v.replace("_", " ") for v in video_names],
     )
-    plt.title("Average Per-Frame Error Rate Heatmap", fontsize=14)
-    plt.xlabel("Normalized Frame Index (1–30)", fontsize=12)
-    plt.ylabel("Action Type", fontsize=12)
+    plt.title(title, fontsize=14)
+    plt.xlabel("Normalized Frame Index (1–31)", fontsize=12)
+    plt.ylabel("Stroke Type", fontsize=12)
     plt.tight_layout()
     plt.savefig(os.path.join(root_path, image_name), dpi=600, bbox_inches="tight")
     plt.close()
@@ -113,6 +112,7 @@ if __name__ == "__main__":
         annotation_dir="./data/stroke_postures/select_frame/20250331",
         a_file=without_racket,
         image_name="error_heatmap_without_racket.png",
+        title = "Average Per-Frame Error Rate Heatmap (w/o racket info)"
     )
 
     with_racket = "data/bast/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_joint_20250514_seed_0008/inference/stroke_postures_val/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
@@ -120,4 +120,5 @@ if __name__ == "__main__":
         annotation_dir="./data/stroke_postures/select_frame/20250331",
         a_file=with_racket,
         image_name="error_heatmap_with_racket.png",
+        title = "Average Per-Frame Error Rate Heatmap (w/ racket info)"
     )
