@@ -53,17 +53,18 @@ color_gt = (0, 255, 0)  # 綠色
 color_action = (0, 0, 255)  # 紅色
 color_score = (0, 255, 255)  # 黃色
 # 在圖片上顯示文字
-font = cv2.FONT_HERSHEY_SIMPLEX
-font_scale = 1
-thickness = 2
+font_height = 32  # 控制字體大小（建議 20~60）
+thickness = -1    # -1 表示使用內部預設，通常夠清晰
+freetype = cv2.freetype.createFreeType2()
+freetype.loadFontData(fontFileName="ttf/CALIBRI.TTF", id=0)
 
 videos_dir = os.listdir(videos_path)
 for video_dir in videos_dir:
     frame_width = 1920
     frame_height = 1080
     fps = 60
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    video_out = cv2.VideoWriter(os.path.join(output_path, video_dir + ".mp4"), fourcc, fps, (frame_width, frame_height))
+    fourcc = cv2.VideoWriter_fourcc(*"FFV1")
+    video_out = cv2.VideoWriter(os.path.join(output_path, video_dir + ".avi"), fourcc, fps, (frame_width, frame_height))
     movie_name_with_dir = os.path.join(videos_path, video_dir)
     file_names = sorted(os.listdir(movie_name_with_dir))
     started = False
@@ -96,16 +97,16 @@ for video_dir in videos_dir:
             else:
                 action_color = color_action  # 如果不相等，顯示紅色
             if int(action_id) != 9 or int(gt_action_id) != 9:
-                cv2.putText(
+                freetype.putText(
                     image,
                     f"Stroke Type: {stroke_id[int(action_id)]}",
                     # (10, 40),
-                    (10, 340),
-                    font,
-                    font_scale,
+                    (10, 300),
+                    font_height,
                     action_color,
                     thickness,
-                    lineType=cv2.LINE_AA,
+                    cv2.LINE_AA,
+                    False,
                 )
 
             # 顯示 score_str (黃色)
