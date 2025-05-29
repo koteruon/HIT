@@ -25,7 +25,6 @@ dist/
 *.swp
 *~
 .DS_Store
-.vscode
 .flake
 
 # Pycharm editor settings
