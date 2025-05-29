@@ -4,7 +4,7 @@ import cv2
 import pandas as pd
 from tqdm import tqdm
 
-videos_path = "data/stroke_postures/all_videos_pose_and_seg"
+videos_path = "data/stroke_postures/videos_pose_and_seg"
 output_path = "data/draw/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_joint_20250514_seed_0008/inference/stroke_postures_val"
 result_path = os.path.join(output_path, "result_top1_action_by_frame_confusion_matrix_stroke_postures.csv")
 
@@ -56,15 +56,15 @@ color_score = (0, 255, 255)  # 黃色
 font_height = 32  # 控制字體大小（建議 20~60）
 thickness = -1  # -1 表示使用內部預設，通常夠清晰
 freetype = cv2.freetype.createFreeType2()
-freetype.loadFontData(fontFileName="ttf/CALIBRI.TTF", id=0)
+freetype.loadFontData("ttf/CALIBRI.TTF", 0)
 
 videos_dir = os.listdir(videos_path)
 for video_dir in videos_dir:
     frame_width = 1920
     frame_height = 1080
     fps = 60
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    video_out = cv2.VideoWriter(os.path.join(output_path, video_dir + ".mp4"), fourcc, fps, (frame_width, frame_height))
+    fourcc = cv2.VideoWriter_fourcc(*"FFV1")
+    video_out = cv2.VideoWriter(os.path.join(output_path, video_dir + ".avi"), fourcc, fps, (frame_width, frame_height))
     movie_name_with_dir = os.path.join(videos_path, video_dir)
     file_names = sorted(os.listdir(movie_name_with_dir))
     started = False
