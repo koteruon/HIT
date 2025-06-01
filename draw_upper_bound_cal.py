@@ -242,14 +242,31 @@ if __name__ == "__main__":
     # exceed_count = count_exceeded_metrics(result)
 
     # 目前141選擇
-    a_file = "data/output/232/hitnet_pose_transformer_only_rgb_20250530_seed_0017/inference/jhmdb_val/result_top1_action_by_frame_confusion_matrix_jhmdb.csv"
+    # a_dir = "data/output/232"
+    # a_dir_prefixes = ["hitnet_pose_transformer_only_rgb_20250530_"]
     # b_dir = "data/bast/jhmdb"
     # b_dir_prefixes = ["SkateFormer_j_2D_20250521_"]
 
+    # 來自232
+    a_dir = "data/jhmdb/top1f"
+    a_dir_prefixes = ["hitnet_pose_transformer_only_rgb_20250530_"]
+
     # 來自222
-    b_dir = "data/stroke_postures/top1f"
+    b_dir = "data/skateformer/top1f"
     b_dir_prefixes = ["SkateFormer_j_2D_20250521_", "SkateFormer_j_2D_20250531_"]
 
+    # === 搜尋符合 prefix 的 a_files ===
+    a_files = []
+    for subfolder in os.listdir(a_dir):
+        full_path = os.path.join(a_dir, subfolder)
+        if os.path.isdir(full_path) and any(subfolder.startswith(p) for p in a_dir_prefixes):
+            match = glob.glob(
+                os.path.join(full_path, "inference/jhmdb_val/result_top1_action_by_frame_confusion_matrix_jhmdb.csv")
+            )
+            a_files.extend(match)
+    a_files = sorted(a_files)
+
+    # === 搜尋符合 prefix 的 b_files ===
     b_files = []
     for subfolder in os.listdir(b_dir):
         full_path = os.path.join(b_dir, subfolder)
@@ -258,28 +275,36 @@ if __name__ == "__main__":
             b_files.extend(matched)
     b_files = sorted(b_files)
 
-    print(f"🔍 共找到 {len(b_files)} 個 top1f.csv 符合指定子資料夾前綴條件")
+    print(f"🔍 找到 {len(a_files)} 個 a_file，{len(b_files)} 個 b_file")
 
+    # === 比對所有 a × b 的組合，找出最小 exceed_count ===
     min_exceed_count = float("inf")
-    best_b_file = None
+    best_pairs = []
 
-    for b_file in b_files:
-        print(f"\n")
-        print("*" * 40)
-        print(f"📊 比較中：{b_file}")
-        try:
-            result = evaluate_fusion_upper_bound(a_file, b_file)
-            exceed_count = count_exceeded_metrics(result)
-            print(f"→ 超過 fusion 上限的項目數：{exceed_count}")
-        except Exception as e:
-            print(f"❌ 錯誤跳過：{e}")
-            continue
+    for a_file in a_files:
+        a_name = a_file.split(os.sep)[-4]  # 例如 hitnet_pose_transformer_only_rgb_*
+        for b_file in b_files:
+            print("\n" + "*" * 40)
+            print(f"📊 比較 A: {a_name}")
+            print(f"        B: {os.path.basename(b_file)}")
+            try:
+                result = evaluate_fusion_upper_bound(a_file, b_file)
+                exceed_count = count_exceeded_metrics(result)
+                print(f"→ 超過 fusion 上限的項目數：{exceed_count}")
+            except Exception as e:
+                print(f"❌ 錯誤跳過：{e}")
+                continue
 
-        if exceed_count < min_exceed_count:
-            min_exceed_count = exceed_count
-            best_b_file = b_file
+            if exceed_count < min_exceed_count:
+                min_exceed_count = exceed_count
+                best_pairs = [(a_file, b_file)]  # 重新開始紀錄
+            elif exceed_count == min_exceed_count:
+                best_pairs.append((a_file, b_file))  # 加入同樣最佳者
 
-    print("-" * 40)
-    print("\n✅ 最佳結果：")
-    print(f"{best_b_file}")
-    print(f"超過 fusion 上限的 precision/recall/f1 總筆數：{min_exceed_count}")
+    # === 最佳結果輸出 ===
+    print("\n" + "-" * 40)
+    print(f"✅ 所有最佳組合（共 {len(best_pairs)} 組），min exceed count = {min_exceed_count}：")
+    for a_file, b_file in best_pairs:
+        print(f"A: {a_file}")
+        print(f"B: {b_file}")
+        print("-" * 20)
