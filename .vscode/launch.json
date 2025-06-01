@@ -104,7 +104,7 @@
         "--config-file",
         "./config_files/hitnet_only_rgb.yaml",
         "MODEL.WEIGHT",
-        "data/output/hitnet_pose_transformer_only_rgb_20250518_seed_0009/model_0007000.pth"
+        "data/output/232/hitnet_pose_transformer_only_rgb_20250530_seed_0002/model_0007000.pth"
       ]
     },
     {
@@ -379,6 +379,14 @@
       "type": "python",
       "request": "launch",
       "program": "draw_error_heatmap.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "draw_upper_bound_cal",
+      "type": "python",
+      "request": "launch",
+      "program": "draw_upper_bound_cal.py",
       "console": "integratedTerminal",
       "justMyCode": true
     },
