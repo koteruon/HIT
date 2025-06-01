@@ -1,4 +1,6 @@
 import csv
+import glob
+import os
 from collections import defaultdict
 
 import numpy as np
@@ -19,7 +21,7 @@ def read_method_instances(filepath, method):
     return instances
 
 
-def evaluate_fusion_upper_bound(a_file, b_file, show_compare=False):
+def evaluate_fusion_upper_bound(a_file, b_file):
     a_instances = read_method_instances(a_file, "a")
     b_instances = read_method_instances(b_file, "b")
 
@@ -119,99 +121,116 @@ def evaluate_fusion_upper_bound(a_file, b_file, show_compare=False):
         f"{'Average':>7} | {'-':>6} | {'-':>11} | {'-':>4} | {'-':>4} | {np.mean(precisions):>11.3f} | {np.mean(recalls):>9.3f} | {np.mean(f1_scores):>11.3f}"
     )
 
-    if show_compare:
-        # === 額外比較原始結果（例如 baseline 模型） ===
-        print("\n【Compare with Original Results — Exceeded Fusion Upper Bound】")
-
-        # 你的 baseline 結果
-        original_table = """
-            Class  ,Precision,Recall   ,F1-Score
-            1,0.994,1.000,0.997
-            2,0.677,0.768,0.719
-            3,0.971,0.932,0.951
-            4,0.990,0.896,0.941
-            5,0.998,1.000,0.999
-            6,0.771,0.594,0.671
-            7,0.842,0.812,0.826
-            8,0.865,0.918,0.891
-            9,1.000,1.000,1.000
-            10,0.957,1.000,0.978
-            11,0.909,1.000,0.952
-            12,0.544,0.620,0.580
-            13,0.736,0.683,0.709
-            14,1.000,1.000,1.000
-            15,0.939,0.972,0.955
-            16,0.554,0.608,0.579
-            17,0.521,0.431,0.472
-            18,0.998,1.000,0.999
-            19,0.793,0.698,0.742
-            20,0.751,0.796,0.773
-            21,0.867,0.867,0.867
-            Average,0.842,0.838,0.838
-            """.strip().splitlines()[
-            1:
-        ]
-
-        # 轉成 dict
-        original_result = {}
-        for row in original_table:
-            parts = row.strip().split(",")
-            cls = int(parts[0]) if parts[0] != "Average" else "Average"
-            original_result[cls] = {
-                "precision": float(parts[1]),
-                "recall": float(parts[2]),
-                "f1": float(parts[3]),
-            }
-
-        # 收集超過 fusion 的 class
-        exceeded_classes = []
-
-        for row in result:
-            cls = row["class"]
-            fusion_prec = row["precision_upper"]
-            fusion_rec = row["recall_upper"]
-            fusion_f1 = row["f1_upper"]
-
-            orig = original_result.get(cls, {})
-            if not orig:
-                continue
-
-            exceeded = []
-            if orig["precision"] > fusion_prec:
-                exceeded.append("Precision")
-            if orig["recall"] > fusion_rec:
-                exceeded.append("Recall")
-            if orig["f1"] > fusion_f1:
-                exceeded.append("F1-score")
-
-            if exceeded:
-                exceeded_classes.append((cls, exceeded))
-
-        # 顯示結果
-        if exceeded_classes:
-            print(f"{'Class':>7} | {'Exceeded Metrics'}")
-            print("-" * 40)
-            for cls, items in exceeded_classes:
-                print(f"{cls:>7} | {', '.join(items)}")
-        else:
-            print("✅ No class in the original result exceeded the fusion upper bound.")
-
-        # 處理 Average
-        avg_fusion_prec = np.mean(precisions)
-        avg_fusion_rec = np.mean(recalls)
-        avg_fusion_f1 = np.mean(f1_scores)
-        avg_exceeded = []
-        if original_result["Average"]["precision"] > avg_fusion_prec:
-            avg_exceeded.append("Precision")
-        if original_result["Average"]["recall"] > avg_fusion_rec:
-            avg_exceeded.append("Recall")
-        if original_result["Average"]["f1"] > avg_fusion_f1:
-            avg_exceeded.append("F1-score")
-
-        print("-" * 40)
-        print(f"{'Average':>7} | {', '.join(avg_exceeded) if avg_exceeded else 'OK'}")
-
     return result
+
+
+def count_exceeded_metrics(result):
+    print("\n【Compare with Original Results — Exceeded Fusion Upper Bound】")
+
+    original_table = """
+        Class  ,Precision,Recall   ,F1-Score
+        1,0.994,1.000,0.997
+        2,0.677,0.768,0.719
+        3,0.971,0.932,0.951
+        4,0.990,0.896,0.941
+        5,0.998,1.000,0.999
+        6,0.771,0.594,0.671
+        7,0.842,0.812,0.826
+        8,0.865,0.918,0.891
+        9,1.000,1.000,1.000
+        10,0.957,1.000,0.978
+        11,0.909,1.000,0.952
+        12,0.544,0.620,0.580
+        13,0.736,0.683,0.709
+        14,1.000,1.000,1.000
+        15,0.939,0.972,0.955
+        16,0.554,0.608,0.579
+        17,0.521,0.431,0.472
+        18,0.998,1.000,0.999
+        19,0.793,0.698,0.742
+        20,0.751,0.796,0.773
+        21,0.867,0.867,0.867
+        Average,0.842,0.838,0.838
+    """.strip().splitlines()[
+        1:
+    ]
+
+    # 轉成 dict
+    original_result = {}
+    for row in original_table:
+        parts = row.strip().split(",")
+        cls = int(parts[0]) if parts[0] != "Average" else "Average"
+        original_result[cls] = {
+            "precision": float(parts[1]),
+            "recall": float(parts[2]),
+            "f1": float(parts[3]),
+        }
+
+    exceeded_classes = []
+    exceed_count = 0
+
+    precisions = []
+    recalls = []
+    f1_scores = []
+
+    for row in result:
+        cls = row["class"]
+        fusion_prec = row["precision_upper"]
+        fusion_rec = row["recall_upper"]
+        fusion_f1 = row["f1_upper"]
+
+        precisions.append(fusion_prec)
+        recalls.append(fusion_rec)
+        f1_scores.append(fusion_f1)
+
+        orig = original_result.get(cls, {})
+        if not orig:
+            continue
+
+        exceeded = []
+        if orig["precision"] > fusion_prec:
+            exceeded.append("Precision")
+            exceed_count += 1
+        if orig["recall"] > fusion_rec:
+            exceeded.append("Recall")
+            exceed_count += 1
+        if orig["f1"] > fusion_f1:
+            exceeded.append("F1-score")
+            exceed_count += 1
+
+        if exceeded:
+            exceeded_classes.append((cls, exceeded))
+
+    # 顯示 class 列表
+    if exceeded_classes:
+        print(f"{'Class':>7} | {'Exceeded Metrics'}")
+        print("-" * 40)
+        for cls, items in exceeded_classes:
+            print(f"{cls:>7} | {', '.join(items)}")
+    else:
+        print("✅ No class in the original result exceeded the fusion upper bound.")
+
+    # 處理 Average
+    avg_fusion_prec = np.mean(precisions)
+    avg_fusion_rec = np.mean(recalls)
+    avg_fusion_f1 = np.mean(f1_scores)
+    avg_exceeded = []
+    if original_result["Average"]["precision"] > avg_fusion_prec:
+        avg_exceeded.append("Precision")
+        exceed_count += 1
+    if original_result["Average"]["recall"] > avg_fusion_rec:
+        avg_exceeded.append("Recall")
+        exceed_count += 1
+    if original_result["Average"]["f1"] > avg_fusion_f1:
+        avg_exceeded.append("F1-score")
+        exceed_count += 1
+
+    print("-" * 40)
+    print(f"{'Average':>7} | {', '.join(avg_exceeded) if avg_exceeded else 'OK'}")
+
+    print(f"\n🔢 總共超過 fusion 上限的 precision / recall / f1 筆數：{exceed_count}")
+
+    return exceed_count
 
 
 if __name__ == "__main__":
@@ -219,8 +238,48 @@ if __name__ == "__main__":
     # 輸入檔案路徑
     # a_file = "data/bast/hitnet_pose_transformer_stroke_postures_joint_only_rgb_20250511_seed_0004/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
     # b_file = "data/bast/stroke_postures/SkateFormer_j_2D_20250423/runs-180-16380_top1f.csv"
+    # result = evaluate_fusion_upper_bound(a_file, b_file)
+    # exceed_count = count_exceeded_metrics(result)
 
-    a_file = "data/output/hitnet_pose_transformer_only_rgb_20250518_seed_0035/inference/jhmdb_val/result_top1_action_by_frame_confusion_matrix_jhmdb.csv"
-    b_file = "data/bast/jhmdb/SkateFormer_b_2D_20250317_04/runs-471-83367_top1f.csv"
+    # 目前141選擇
+    a_file = "data/output/232/hitnet_pose_transformer_only_rgb_20250530_seed_0017/inference/jhmdb_val/result_top1_action_by_frame_confusion_matrix_jhmdb.csv"
+    # b_dir = "data/bast/jhmdb"
+    # b_dir_prefixes = ["SkateFormer_j_2D_20250521_"]
 
-    evaluate_fusion_upper_bound(a_file, b_file, show_compare=True)
+    # 來自222
+    b_dir = "data/stroke_postures/top1f"
+    b_dir_prefixes = ["SkateFormer_j_2D_20250521_", "SkateFormer_j_2D_20250531_"]
+
+    b_files = []
+    for subfolder in os.listdir(b_dir):
+        full_path = os.path.join(b_dir, subfolder)
+        if os.path.isdir(full_path) and any(subfolder.startswith(p) for p in b_dir_prefixes):
+            matched = glob.glob(os.path.join(full_path, "*top1f.csv"))
+            b_files.extend(matched)
+    b_files = sorted(b_files)
+
+    print(f"🔍 共找到 {len(b_files)} 個 top1f.csv 符合指定子資料夾前綴條件")
+
+    min_exceed_count = float("inf")
+    best_b_file = None
+
+    for b_file in b_files:
+        print(f"\n")
+        print("*" * 40)
+        print(f"📊 比較中：{b_file}")
+        try:
+            result = evaluate_fusion_upper_bound(a_file, b_file)
+            exceed_count = count_exceeded_metrics(result)
+            print(f"→ 超過 fusion 上限的項目數：{exceed_count}")
+        except Exception as e:
+            print(f"❌ 錯誤跳過：{e}")
+            continue
+
+        if exceed_count < min_exceed_count:
+            min_exceed_count = exceed_count
+            best_b_file = b_file
+
+    print("-" * 40)
+    print("\n✅ 最佳結果：")
+    print(f"{best_b_file}")
+    print(f"超過 fusion 上限的 precision/recall/f1 總筆數：{min_exceed_count}")
