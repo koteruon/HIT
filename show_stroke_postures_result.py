@@ -4,8 +4,8 @@ import cv2
 import pandas as pd
 from tqdm import tqdm
 
-videos_path = "data/stroke_postures/all_no_analyze_no_area"
-output_path = "data/draw/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250424_seed_0018/inference/stroke_postures_val_450"
+videos_path = "data/stroke_postures/all_no_analyze"
+output_path = "data/draw/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_joint_20250514_seed_0008/inference/stroke_postures_val"
 result_path = os.path.join(output_path, "result_top1_action_by_frame_confusion_matrix_stroke_postures.csv")
 
 
@@ -49,7 +49,7 @@ df = pd.DataFrame(
 df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
 
 # 設定文字顏色
-color_gt = (0, 255, 0)  # 綠色
+color_gt = (0, 100, 0)  # 綠色
 color_action = (0, 0, 255)  # 紅色
 color_score = (0, 255, 255)  # 黃色
 # 在圖片上顯示文字
@@ -121,7 +121,6 @@ for video_dir in videos_dir:
                         cv2.LINE_AA,
                         False,
                     )
-
 
             # 顯示 score_str (黃色)
             # cv2.putText(image, f"Score: {score_str}", (10, 120), font, font_scale, color_score, thickness)
