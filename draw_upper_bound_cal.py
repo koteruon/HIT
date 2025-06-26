@@ -128,29 +128,29 @@ def count_exceeded_metrics(result):
     print("\n【Compare with Original Results — Exceeded Fusion Upper Bound】")
 
     original_table = """
-        Class  ,Precision,Recall   ,F1-Score
-        1,0.994,1.000,0.997
-        2,0.677,0.768,0.719
-        3,0.971,0.932,0.951
-        4,0.990,0.896,0.941
-        5,0.998,1.000,0.999
-        6,0.771,0.594,0.671
-        7,0.842,0.812,0.826
-        8,0.865,0.918,0.891
-        9,1.000,1.000,1.000
-        10,0.957,1.000,0.978
-        11,0.909,1.000,0.952
-        12,0.544,0.620,0.580
-        13,0.736,0.683,0.709
-        14,1.000,1.000,1.000
-        15,0.939,0.972,0.955
-        16,0.554,0.608,0.579
-        17,0.521,0.431,0.472
-        18,0.998,1.000,0.999
-        19,0.793,0.698,0.742
-        20,0.751,0.796,0.773
-        21,0.867,0.867,0.867
-        Average,0.842,0.838,0.838
+    Class  ,Precision,Recall   ,F1-Score
+      1,    0.994,    1.000,    0.997
+      2,    0.677,    0.768,    0.719
+      3,    0.971,    0.932,    0.951
+      4,    0.990,    0.896,    0.941
+      5,    0.998,    1.000,    0.999
+      6,    0.771,    0.594,    0.671
+      7,    0.842,    0.812,    0.826
+      8,    0.865,    0.918,    0.891
+      9,    1.000,    1.000,    1.000
+     10,    0.957,    1.000,    0.978
+     11,    0.909,    1.000,    0.952
+     12,    0.544,    0.620,    0.580
+     13,    0.736,    0.683,    0.709
+     14,    1.000,    1.000,    1.000
+     15,    0.939,    0.972,    0.955
+     16,    0.554,    0.608,    0.579
+     17,    0.521,    0.431,    0.472
+     18,    0.998,    1.000,    0.999
+     19,    0.793,    0.698,    0.742
+     20,    0.751,    0.796,    0.773
+     21,    0.867,    0.867,    0.867
+    Average,    0.842,    0.838,    0.838
     """.strip().splitlines()[
         1:
     ]
@@ -253,7 +253,7 @@ if __name__ == "__main__":
 
     # 來自222
     b_dir = "data/skateformer/top1f"
-    b_dir_prefixes = ["SkateFormer_j_2D_20250521_", "SkateFormer_j_2D_20250531_"]
+    b_dir_prefixes = ["SkateFormer_j_2D_20250521_", "SkateFormer_j_2D_20250531_", "SkateFormer_j_2D_20250603_"]
 
     # === 搜尋符合 prefix 的 a_files ===
     a_files = []
@@ -281,14 +281,21 @@ if __name__ == "__main__":
     min_exceed_count = float("inf")
     best_pairs = []
 
-    for a_file in a_files:
-        a_name = a_file.split(os.sep)[-4]  # 例如 hitnet_pose_transformer_only_rgb_*
-        for b_file in b_files:
+    # === 統計每個 b_file 對應所有 a_file 的平均 F1-score ===
+    b_file_f1_scores = defaultdict(list)
+
+    for b_file in b_files:
+        b_name = b_file.split(os.sep)[-2]
+        for a_file in a_files:
+            a_name = a_file.split(os.sep)[-4]  # 例如 hitnet_pose_transformer_only_rgb_*
             print("\n" + "*" * 40)
             print(f"📊 比較 A: {a_name}")
-            print(f"        B: {os.path.basename(b_file)}")
+            print(f"        B: {b_name}")
             try:
                 result = evaluate_fusion_upper_bound(a_file, b_file)
+                f1_scores = [row["f1_upper"] for row in result]
+                avg_f1 = np.mean(f1_scores)
+                b_file_f1_scores[b_file].append(avg_f1)
                 exceed_count = count_exceeded_metrics(result)
                 print(f"→ 超過 fusion 上限的項目數：{exceed_count}")
             except Exception as e:
@@ -308,3 +315,23 @@ if __name__ == "__main__":
         print(f"A: {a_file}")
         print(f"B: {b_file}")
         print("-" * 20)
+
+    # === 計算每個 b_file 的平均 F1-score ===
+    b_file_avg_f1 = {b_file: np.mean(f1_list) for b_file, f1_list in b_file_f1_scores.items() if f1_list}
+
+    # === 額外列出所有最佳組合中 b_file 的平均 F1-score ===
+    print("\n" + "=" * 40)
+    print("📌 所有最佳組合中的 b_file 之平均 F1-score：")
+    for _, b_file in best_pairs:
+        avg_f1 = b_file_avg_f1.get(b_file, None)
+        if avg_f1 is not None:
+            print(f"B: {b_file} → 平均 F1-score: {avg_f1:.3f}")
+        else:
+            print(f"B: {b_file} → 無 F1-score 資料")
+
+    # === 額外印出 Top 5 b_file（依照平均 F1-score 排序） ===
+    print("\n" + "=" * 40)
+    print("🏆 平均 F1-score 前五名的 B files：")
+    top_5 = sorted(b_file_avg_f1.items(), key=lambda x: x[1], reverse=True)[:5]
+    for i, (b_file, avg_f1) in enumerate(top_5, 1):
+        print(f"{i:>2}. {b_file} → 平均 F1-score: {avg_f1:.3f}")
