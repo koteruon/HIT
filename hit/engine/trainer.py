@@ -188,7 +188,7 @@ def val_in_train(
             os.makedirs(output_folder, exist_ok=True)
             output_folders[idx] = output_folder
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names_val, data_loaders_val):
-        avg_precision = inference(
+        avg_precision, f1_score = inference(
             model_val,
             data_loader_val,
             dataset_name,

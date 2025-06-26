@@ -29,11 +29,11 @@ def save_jhmdb_results(dataset, predictions, output_folder, logger):
         write_top1_action_by_frame_confusion_matrix_csv(
             ava_results, top1_action_by_frame_confusion_matrix_file_path, logger, dataset
         )
-        avg_precision = write_top1_action_by_video_confusion_matrix_csv(
+        avg_precision, f1_score = write_top1_action_by_video_confusion_matrix_csv(
             ava_results, top1_action_by_video_confusion_matrix_file_path, logger, dataset
         )
         write_files(ava_results, output_folder, logger)
-        return avg_precision
+        return avg_precision, f1_score
 
 
 def make_image_key(video_id, timestamp):
@@ -292,7 +292,7 @@ def write_top1_action_by_video_confusion_matrix_csv(ava_results, csv_result_file
         spamwriter.writerow(["Average", f"{avg_precision:9.3f}", f"{avg_recall:9.3f}", f"{avg_f1_score:9.3f}"])
 
     print_time(logger, "write confusion matrix CSV file " + csv_result_file, start)
-    return avg_precision
+    return avg_precision, f1_score
 
 
 def write_files(ava_results, csv_result_file, logger):
