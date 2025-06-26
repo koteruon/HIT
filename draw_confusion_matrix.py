@@ -3,7 +3,8 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from upper_bound_cal import evaluate_fusion_upper_bound
+
+from draw_upper_bound_cal import evaluate_fusion_upper_bound
 
 # 自訂類別名稱對照表（可修改）
 class_names_dict = {
@@ -21,7 +22,7 @@ class_names_dict = {
 root_path = "confusion_matrix"
 os.makedirs(root_path, exist_ok=True)
 
-show_table = True
+show_table = False
 
 
 def generate_confusion_matrix(raw_text, save_file_name, plt_title, is_show_upper_bound=False, a_file=None, b_file=None):
@@ -207,7 +208,7 @@ raw_text = """
  37,202, 70, 27, 11, 29,  0,126,3418
 """
 
-generate_confusion_matrix(raw_text, "hit_only_rgb.png", "SlowFast networks Confusion Matrix")
+generate_confusion_matrix(raw_text, "hit_only_rgb.png", "SlowFast ResNet network Confusion Matrix")
 
 # ---------------------------------------HIT add single frame pose-------------------------------------------------
 
@@ -259,8 +260,8 @@ raw_text = """
   9, 59,  8, 30,  5,  7,  0, 16,3786
 """
 
-a_file = "data/bast/hitnet_pose_transformer_stroke_postures_joint_only_rgb_20250511_seed_0004/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
-b_file = "data/bast/stroke_postures/SkateFormer_j_2D_20250423/runs-180-16380_top1f.csv"
+a_file = "data/best/hitnet_pose_transformer_stroke_postures_joint_only_rgb_20250511_seed_0004/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
+b_file = "data/best/stroke_postures/SkateFormer_j_2D_20250423/runs-180-16380_top1f.csv"
 
 # generate_confusion_matrix(
 #     raw_text,
