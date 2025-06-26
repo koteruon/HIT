@@ -55,3 +55,4 @@ pred.csv
 
 /skateformer
 !environment.yml
+huggingface_upload.py
