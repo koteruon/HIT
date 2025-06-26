@@ -397,6 +397,14 @@
       "program": "show_stroke_postures_result.py",
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "show_jhmdb_result",
+      "type": "python",
+      "request": "launch",
+      "program": "show_jhmdb_result.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
     }
   ]
 }
