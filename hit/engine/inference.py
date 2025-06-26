@@ -184,6 +184,8 @@ def inference(
     dataset_name,
     mem_active=False,
     output_folder=None,
+    is_check_f1_score=False,
+    check_f1_score_target=[],
 ):
     # convert to a torch.device for efficiency
     device = torch.device("cuda")
@@ -210,8 +212,6 @@ def inference(
     if output_folder:
         torch.save(predictions, os.path.join(output_folder, "predictions.pth"))
 
-    return evaluate(
-        dataset=dataset,
-        predictions=predictions,
-        output_folder=output_folder,
-    )
+    kwargs = {"is_check_f1_score": is_check_f1_score, "check_f1_score_target": check_f1_score_target}
+
+    return evaluate(dataset=dataset, predictions=predictions, output_folder=output_folder, **kwargs)

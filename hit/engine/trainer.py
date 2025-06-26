@@ -139,6 +139,7 @@ def do_train(
             dataset_names_val
             and (iteration % val_period == 0 or iteration == start_val_period)
             and iteration >= start_val_period
+            and iteration != max_iter
         ):
             # do validation
             val_in_train(
@@ -193,6 +194,8 @@ def val_in_train(
             dataset_name,
             mem_active,
             output_folder=output_folder,
+            is_check_f1_score=cfg.SOLVER.IS_CHECK_F1_SCORE,
+            check_f1_score_target=cfg.SOLVER.CHECK_F1_SCORE_TARGET,
         )
         synchronize()
     if avg_precision < cfg.SOLVER.TARGET_EVAL_MAP and start_val_period == iteration:

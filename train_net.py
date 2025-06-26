@@ -137,6 +137,8 @@ def run_test(cfg, model, distributed):
             dataset_name,
             mem_active=has_memory(cfg.MODEL.HIT_STRUCTURE),
             output_folder=output_folder,
+            is_check_f1_score=cfg.SOLVER.IS_CHECK_F1_SCORE,
+            check_f1_score_target=cfg.SOLVER.CHECK_F1_SCORE_TARGET,
         )
         synchronize()
 

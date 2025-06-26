@@ -11,7 +11,7 @@ import numpy as np
 from .pascal_evaluation import object_detection_evaluation, standard_fields
 
 
-def save_jhmdb_results(dataset, predictions, output_folder, logger):
+def save_jhmdb_results(dataset, predictions, output_folder, logger, is_check_f1_score, check_f1_score_target):
     logger.info("Preparing results for AVA format")
     ava_results = prepare_for_jhmdb_detection(predictions, dataset)
     logger.info("Evaluating predictions")
@@ -30,7 +30,12 @@ def save_jhmdb_results(dataset, predictions, output_folder, logger):
             ava_results, top1_action_by_frame_confusion_matrix_file_path, logger, dataset
         )
         avg_precision = write_top1_action_by_video_confusion_matrix_csv(
-            ava_results, top1_action_by_video_confusion_matrix_file_path, logger, dataset
+            ava_results,
+            top1_action_by_video_confusion_matrix_file_path,
+            logger,
+            dataset,
+            is_check_f1_score,
+            check_f1_score_target,
         )
         write_files(ava_results, output_folder, logger)
         return avg_precision
@@ -210,7 +215,9 @@ def write_top1_action_by_frame_confusion_matrix_csv(ava_results, csv_result_file
     print_time(logger, "write file " + csv_result_file, start)
 
 
-def write_top1_action_by_video_confusion_matrix_csv(ava_results, csv_result_file, logger, dataset):
+def write_top1_action_by_video_confusion_matrix_csv(
+    ava_results, csv_result_file, logger, dataset, is_check_f1_score, check_f1_score_target
+):
     # 提取資料集中的 distinct 類別數量
     num_classes = len(
         np.unique(dataset.movies_action_gt.val_arr.flatten())
@@ -283,9 +290,24 @@ def write_top1_action_by_video_confusion_matrix_csv(ava_results, csv_result_file
 
         # Precision, Recall, F1-Score 寫入
         spamwriter.writerow([])  # 空行分隔混淆矩陣和指標
-        spamwriter.writerow(["Class  ", "Precision", "Recall   ", "F1-Score "])
+        if is_check_f1_score:
+            spamwriter.writerow(["Class  ", "Precision", "Recall   ", "F1-Score ", "Diff     "])
+        else:
+            spamwriter.writerow(["Class  ", "Precision", "Recall   ", "F1-Score "])
         for i in range(num_classes):
-            spamwriter.writerow([f"{i+1:>7}", f"{precision[i]:9.3f}", f"{recall[i]:9.3f}", f"{f1_score[i]:9.3f}"])
+            if is_check_f1_score:
+                f1_diff = check_f1_score_target[i] - f1_score[i]
+                f1_diff_str = f"{f1_diff:+9.3f}"  # 帶符號、寬度9、3位小數
+
+            spamwriter.writerow(
+                [
+                    f"{i+1:>7}",
+                    f"{precision[i]:9.3f}",
+                    f"{recall[i]:9.3f}",
+                    f"{f1_score[i]:9.3f}",
+                    f1_diff_str if is_check_f1_score else "",
+                ]
+            )
 
         # 寫入平均 Precision, Recall, F1-Score
         spamwriter.writerow([])  # 空行分隔各類別和總體平均
