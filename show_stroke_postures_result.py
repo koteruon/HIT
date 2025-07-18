@@ -4,21 +4,21 @@ import cv2
 import pandas as pd
 from tqdm import tqdm
 
-videos_path = "data/stroke_postures/all_no_analyze"
+videos_path = "data/stroke_postures/all"
 output_path = "data/draw/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_joint_20250514_seed_0008/inference/stroke_postures_val"
 result_path = os.path.join(output_path, "result_top1_action_by_frame_confusion_matrix_stroke_postures.csv")
 
 
 stroke_id = {
-    1: "Backhand Chop",
-    2: "Backhand Flick",
-    3: "Backhand Push",
-    4: "Backhand Topspin",
-    5: "Forehand Chop",
-    6: "Forehand Drive",
-    7: "Forehand Smash",
-    8: "Forehand Topspin",
-    9: "Background",
+    1: "反手切球",  # "Backhand Chop",
+    2: "反手擰球",  # "Backhand Flick",
+    3: "反手推球",  # "Backhand Push",
+    4: "反手拉球",  # "Backhand Topspin",
+    5: "正手切球",  # "Forehand Chop",
+    6: "正手平擊",  # "Forehand Drive",
+    7: "正手殺球",  # "Forehand Smash",
+    8: "正手拉球",  # "Forehand Topspin",
+    9: "背景",  # "Background",
 }
 
 with open(result_path, "r") as file:
@@ -56,7 +56,7 @@ color_score = (0, 255, 255)  # 黃色
 font_height = 32  # 控制字體大小（建議 20~60）
 thickness = -1  # -1 表示使用內部預設，通常夠清晰
 freetype = cv2.freetype.createFreeType2()
-freetype.loadFontData("ttf/CALIBRI.TTF", 0)
+freetype.loadFontData("ttf/MSJH.TTC", 0)
 
 videos_dir = os.listdir(videos_path)
 for video_dir in videos_dir:
@@ -99,7 +99,7 @@ for video_dir in videos_dir:
             if int(action_id) != 9:
                 freetype.putText(
                     image,
-                    f"Stroke Type: {stroke_id[int(action_id)]}",
+                    f"擊球類型：{stroke_id[int(action_id)]}",  # f"Stroke Type: {stroke_id[int(action_id)]}",
                     (10, 10),
                     # (10, 300),
                     font_height,
@@ -112,7 +112,7 @@ for video_dir in videos_dir:
                 if int(gt_action_id) != 9:
                     freetype.putText(
                         image,
-                        f"Stroke Type: {stroke_id[int(gt_action_id)]}",
+                        f"擊球類型：{stroke_id[int(gt_action_id)]}",  # f"Stroke Type: {stroke_id[int(gt_action_id)]}",
                         (10, 10),
                         # (10, 300),
                         font_height,

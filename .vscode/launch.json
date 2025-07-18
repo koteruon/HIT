@@ -21,7 +21,7 @@
       "justMyCode": false,
       "args": [
         "--config-file",
-        "./config_files/hitnet_pretrain_skateformer.yaml",
+        "./config_files/hitnet_pretrain_skateformer.yaml"
       ]
     },
     {
@@ -167,6 +167,20 @@
       "args": [
         "--config-file",
         "./config_files/hitnet_stroke_postures_pretrain_skateformer_j.yaml",
+        "MODEL.WEIGHT",
+        "data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250424_seed_0018/model_0000450.pth"
+      ]
+    },
+    {
+      "name": "test stroke postures pred with pretrain skateformer joint",
+      "type": "python",
+      "request": "launch",
+      "program": "test_net.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "args": [
+        "--config-file",
+        "./config_files/hitnet_stroke_postures_pred_pretrain_skateformer_j.yaml",
         "MODEL.WEIGHT",
         "data/output/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250424_seed_0018/model_0000450.pth"
       ]
@@ -383,6 +397,14 @@
       "justMyCode": true
     },
     {
+      "name": "draw_confusion_matrix",
+      "type": "python",
+      "request": "launch",
+      "program": "draw_confusion_matrix.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "draw_upper_bound_cal",
       "type": "python",
       "request": "launch",
@@ -399,12 +421,60 @@
       "justMyCode": true
     },
     {
+      "name": "show_stroke_postures_compare_result",
+      "type": "python",
+      "request": "launch",
+      "program": "show_stroke_postures_compare_result.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "show_jhmdb_result",
       "type": "python",
       "request": "launch",
       "program": "show_jhmdb_result.py",
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "show_jhmdb_compare_result",
+      "type": "python",
+      "request": "launch",
+      "program": "show_jhmdb_compare_result.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "jhmdb_analyze",
+      "type": "python",
+      "request": "launch",
+      "program": "jhmdb_analyze.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "combine",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "combine.py",
+      "console": "integratedTerminal",
+      "cwd": "/home/siplab5/chaoen/yoloNhit_calvin/HIT_B2C/data/combine"
+    },
+    {
+      "name": "compare",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "compare.py",
+      "console": "integratedTerminal",
+      "cwd": "/home/siplab5/chaoen/yoloNhit_calvin/HIT_B2C/data/combine"
+    },
+    {
+      "name": "crop_left_half_and_save_ffv1",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "crop_left_half_and_save_ffv1.py",
+      "console": "integratedTerminal",
+      "cwd": "/home/siplab5/chaoen/yoloNhit_calvin/HIT_B2C/data/combine"
     }
   ]
 }

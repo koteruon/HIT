@@ -127,10 +127,12 @@ color_action = (0, 0, 255)
 freetype = cv2.freetype.createFreeType2()
 freetype.loadFontData("ttf/CALIBRI.TTF", 0)
 
+# ---------------------------------------------test-----------------------------------------
+
 # 路徑設定
-root_path = "data/draw/hitnet_pose_transformer_with_pretrain_skateformer_20250319_seed_0046/inference/jhmdb_val"
+root_path = "data/draw/hitnet_pose_transformer_20250324_seed_0014/inference/jhmdb_val"
 base_det_path = os.path.join(root_path, "detections")
-output_dir = os.path.join(root_path, "output_videos")
+output_dir = os.path.join(root_path, "output_test_videos")
 image_root = "data/jhmdb/videos"
 gt_json_path = "data/jhmdb/annotations/jhmdb_test_gt_min.json"
 kpt_json_path = "data/jhmdb/annotations/jhmdb_test_person_bbox_kpts.json"
@@ -163,7 +165,7 @@ model = table_tennis_tools.joint2bone()
 # 收集影片影格資料
 video_frames = defaultdict(list)
 
-for img_info in gt_data["images"]:
+for img_info in tqdm(gt_data["images"], desc="處理標註資料"):
     image_id = img_info["id"]
     movie = img_info["movie"]
     timestamp = img_info["timestamp"]
@@ -215,8 +217,8 @@ for movie, frames in tqdm(video_frames.items(), desc="處理影片數量"):
 
     output_subdir = os.path.join(output_dir, action_folder)
     os.makedirs(output_subdir, exist_ok=True)
-    output_path = os.path.join(output_subdir, f"{movie}.mp4")
-    writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), 30, (width, height))
+    output_path = os.path.join(output_subdir, f"{movie}.avi")
+    writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"FFV1"), 30, (width, height))
 
     for _, img_rel_path, pred_action_id, gt_action_id, keypoints, matched_bbox, image_id in tqdm(
         frames, desc=f"寫入 {movie}", leave=False
@@ -229,10 +231,28 @@ for movie, frames in tqdm(video_frames.items(), desc="處理影片數量"):
 
         color = color_gt if pred_action_id == gt_action_id else color_action
         action_name = action_map.get(pred_action_id, "unknown")
+
+        # 計算文字大小
+        (text_w, text_h), baseline = freetype.getTextSize(action_name, font_height, thickness)
+        # 設定文字左上角座標
+        x, y = 10, 10
+
+        # 根據文字大小計算背景框位置
+        box_x1 = x
+        box_y1 = y + 23 - text_h
+        box_x2 = x + text_w + 10  # 加一點 padding
+        box_y2 = y + 23 + baseline + 10
+
+        # 畫半透明背景
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (box_x1, box_y1), (box_x2, box_y2), (255, 255, 255), -1, cv2.LINE_AA)
+        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+        # 畫上文字（略微下移以置中）
         freetype.putText(
             frame,
             action_name,
-            (10, 10),
+            (x + 5, y - 4),  # 微調置中
             font_height,
             color,
             thickness,
@@ -250,6 +270,86 @@ for movie, frames in tqdm(video_frames.items(), desc="處理影片數量"):
         # for bbox, _ in top3:
         #     x1, y1, x2, y2 = map(int, bbox)
         #     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 0), 1)
+
+        if keypoints is not None:
+            # Step 1: 轉為 numpy 陣列 (17, 2)
+            keypoints_xy = np.array(keypoints)
+            # Step 2: 加上 conf=1.0，變成 (17, 3)
+            keypoints_full = np.hstack([keypoints_xy, np.ones((17, 1), dtype=float)])
+            # Step 3: 包成 list of [17, 3] 結構 (支援多人)
+            pose_keypoints_batch = [keypoints_full]
+
+            frame = plot_pose(frame, ["person"], pose_keypoints_batch)
+
+        writer.write(frame)
+
+    writer.release()
+
+
+# ---------------------------------------------train-----------------------------------------
+
+output_dir = os.path.join(root_path, "output_train_videos")
+image_root = "data/jhmdb/videos"
+gt_json_path = "data/jhmdb/annotations/jhmdb_train_gt_min.json"
+kpt_json_path = "data/jhmdb/annotations/jhmdb_train_person_bbox_kpts.json"
+
+
+os.makedirs(output_dir, exist_ok=True)
+
+# 載入資料
+with open(gt_json_path, "r") as f:
+    gt_data = json.load(f)
+
+with open(kpt_json_path, "r") as f:
+    kpts_data = json.load(f)
+
+# 建立映射
+gt_ann_dict = {ann["image_id"]: ann for ann in gt_data["annotations"]}
+
+# 收集影片影格資料
+video_frames = defaultdict(list)
+
+for img_info in tqdm(gt_data["images"], desc="處理標註資料"):
+    image_id = img_info["id"]
+    movie = img_info["movie"]
+    timestamp = img_info["timestamp"]
+    img_path = img_info["img_path"]
+
+    gt_ann = gt_ann_dict.get(image_id, None)
+    gt_action_id = gt_ann["action_ids"][0] if gt_ann else -1
+    gt_bbox = gt_ann["bbox"] if gt_ann else [0, 0, 0, 0]
+
+    best_kpts, matched_bbox = find_best_keypoints(image_id, gt_bbox, kpts_data)
+    if best_kpts:
+        best_kpts = [[x, y] for x, y, c in best_kpts]
+
+    video_frames[movie].append((int(timestamp), img_path, -1, gt_action_id, best_kpts, matched_bbox, image_id))
+
+# 輸出影片
+for movie, frames in tqdm(video_frames.items(), desc="處理影片數量"):
+    frames.sort()
+    first_img_path = os.path.join(image_root, frames[0][1])
+    first_frame = cv2.imread(first_img_path)
+    if first_frame is None:
+        print(f"[錯誤] 無法讀取：{first_img_path}")
+        continue
+
+    height, width = first_frame.shape[:2]
+    gt_ids = [f[3] for f in frames]
+    most_common_gt_action_id = Counter(gt_ids).most_common(1)[0][0]
+    action_folder = action_map[most_common_gt_action_id].replace(" ", "_")
+
+    output_subdir = os.path.join(output_dir, action_folder)
+    os.makedirs(output_subdir, exist_ok=True)
+    output_path = os.path.join(output_subdir, f"{movie}.avi")
+    writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"FFV1"), 30, (width, height))
+
+    for _, img_rel_path, _, _, keypoints, _, _ in tqdm(frames, desc=f"寫入 {movie}", leave=False):
+        img_full_path = os.path.join(image_root, img_rel_path)
+        frame = cv2.imread(img_full_path)
+        if frame is None:
+            print(f"[警告] 無法讀取圖片：{img_full_path}")
+            continue
 
         if keypoints is not None:
             # Step 1: 轉為 numpy 陣列 (17, 2)
