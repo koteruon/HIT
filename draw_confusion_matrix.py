@@ -3,21 +3,26 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from matplotlib import font_manager
 
 from draw_upper_bound_cal import evaluate_fusion_upper_bound
 
+font_path = "ttf/MSJH.TTC"
+custom_font = font_manager.FontProperties(fname=font_path)
+
 # 自訂類別名稱對照表（可修改）
 class_names_dict = {
-    0: "backhand chop",
-    1: "backhand flick",
-    2: "backhand push",
-    3: "backhand topspin",
-    4: "forehand chop",
-    5: "forehand drive",
-    6: "forehand smash",
-    7: "forehand topspin",
-    8: "background",
+    0: "反手切球",  # "Backhand Chop",
+    1: "反手擰球",  # "Backhand Flick",
+    2: "反手推球",  # "Backhand Push",
+    3: "反手拉球",  # "Backhand Topspin",
+    4: "正手切球",  # "Forehand Chop",
+    5: "正手平擊",  # "Forehand Drive",
+    6: "正手殺球",  # "Forehand Smash",
+    7: "正手拉球",  # "Forehand Topspin",
+    8: "背景",
 }
+
 
 root_path = "confusion_matrix"
 os.makedirs(root_path, exist_ok=True)
@@ -43,7 +48,7 @@ def generate_confusion_matrix(raw_text, save_file_name, plt_title, is_show_upper
 
     # 畫圖
     plt.figure(figsize=(1.2 * num_classes, 1.1 * num_classes))
-    sns.heatmap(
+    ax = sns.heatmap(
         normalized_colors,
         annot=conf_mat,
         fmt="d",
@@ -55,11 +60,15 @@ def generate_confusion_matrix(raw_text, save_file_name, plt_title, is_show_upper
         vmax=1,
     )
 
+    # 改 x/y 軸字體為繁體中文
+    ax.set_xticklabels(ax.get_xticklabels(), fontproperties=custom_font, rotation=45)
+    ax.set_yticklabels(ax.get_yticklabels(), fontproperties=custom_font, rotation=0)
+
     plt.xlabel("Predicted Label", fontsize=16)
     plt.ylabel("True Label", fontsize=16)
     plt.title(f"{plt_title} (Color = Ratio, Value = Count)", fontsize=18)
 
-    plt.xticks(rotation=45, ha="right", fontsize=14)
+    plt.xticks(ha="right", fontsize=14)
     plt.yticks(fontsize=14)
     plt.tight_layout()
 
@@ -225,7 +234,7 @@ raw_text = """
  71,152, 26,118,119,  8,  1, 58,3367
 """
 
-generate_confusion_matrix(raw_text, "hit_add_single_frame_pose.png", "HIT network Confusion Matrix")
+generate_confusion_matrix(raw_text, "hit_add_single_frame_pose.png", "HIT Network Confusion Matrix")
 
 
 # --------------------------------------- skateformer -------------------------------------------------
@@ -261,7 +270,7 @@ raw_text = """
 """
 
 a_file = "data/best/hitnet_pose_transformer_stroke_postures_joint_only_rgb_20250511_seed_0004/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
-b_file = "data/best/stroke_postures/SkateFormer_j_2D_20250423/runs-180-16380_top1f.csv"
+b_file = "data/best/stroke_postures/SkateFormer_j_2D_20250423_0_2_74/runs-186-2790_top1f.csv"
 
 # generate_confusion_matrix(
 #     raw_text,
@@ -274,7 +283,7 @@ b_file = "data/best/stroke_postures/SkateFormer_j_2D_20250423/runs-180-16380_top
 generate_confusion_matrix(
     raw_text,
     "hit_add_skateformer.png",
-    "Our proposed (w/o racket info) Confusion Matrix",
+    "Our proposed Method (w/o racket info) Confusion Matrix",
     is_show_upper_bound=True,
     a_file=a_file,
     b_file=b_file,
@@ -296,5 +305,5 @@ raw_text = """
 """
 
 generate_confusion_matrix(
-    raw_text, "hit_add_skateformer_and_racket_info.png", "Our proposed (w/ racket info) Confusion Matrix"
+    raw_text, "hit_add_skateformer_and_racket_info.png", "Our proposed Method (w/ racket info) Confusion Matrix"
 )

@@ -6,11 +6,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib import font_manager
 
 from draw_upper_bound_cal import read_method_instances
 
 root_path = "error_heatmap"
 os.makedirs(root_path, exist_ok=True)
+
+font_path = "ttf/MSJH.TTC"
+custom_font = font_manager.FontProperties(fname=font_path)
+
+stroke_label_map = {
+    "backhand_chop": "反手切球",
+    "backhand_flick": "反手擰球",
+    "backhand_push": "反手推球",
+    "backhand_topspin": "反手拉球",
+    "forehand_chop": "正手切球",
+    "forehand_drive": "正手平擊",
+    "forehand_smash": "正手殺球",
+    "forehand_topspin": "正手拉球",
+}
 
 
 def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name, title):
@@ -88,15 +103,19 @@ def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name
     # 繪圖
     error_matrix = np.array(video_normalized_errors)
     plt.figure(figsize=(12, 5))
-    sns.heatmap(
+    ax = sns.heatmap(
         error_matrix,
         cmap=sns.light_palette("steelblue", as_cmap=True),
         vmin=0.0,
         vmax=1.0,
         cbar_kws={"label": "Average Error Rate"},
         xticklabels=[f"{i+1}" for i in range(normalized_length)],
-        yticklabels=[v.replace("_", " ") for v in video_names],
+        yticklabels=[stroke_label_map.get(v) for v in video_names],
     )
+
+    ax.set_xticklabels(ax.get_xticklabels(), fontproperties=custom_font)
+    ax.set_yticklabels(ax.get_yticklabels(), fontproperties=custom_font, rotation=0)
+
     plt.title(title, fontsize=14)
     plt.xlabel("Normalized Frame Index (1–31)", fontsize=12)
     plt.ylabel("Stroke Type", fontsize=12)
@@ -107,18 +126,18 @@ def generate_error_heatmap_from_single_method(annotation_dir, a_file, image_name
 
 
 if __name__ == "__main__":
-    without_racket = "data/bast/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250424_seed_0018/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
+    without_racket = "data/best/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_joint_20250424_seed_0018/inference/stroke_postures_val_450/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
     generate_error_heatmap_from_single_method(
         annotation_dir="./data/stroke_postures/select_frame/20250331",
         a_file=without_racket,
         image_name="error_heatmap_without_racket.png",
-        title = "Average Per-Frame Error Rate Heatmap (w/o racket info)"
+        title="Average Per-Frame Error Rate Heatmap (w/o racket info)",
     )
 
-    with_racket = "data/bast/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_joint_20250514_seed_0008/inference/stroke_postures_val/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
+    with_racket = "data/best/hitnet_pose_transformer_stroke_postures_with_pretrain_skateformer_and_racket_info_joint_20250514_seed_0008/inference/stroke_postures_val/result_top1_action_by_frame_confusion_matrix_stroke_postures.csv"
     generate_error_heatmap_from_single_method(
         annotation_dir="./data/stroke_postures/select_frame/20250331",
         a_file=with_racket,
         image_name="error_heatmap_with_racket.png",
-        title = "Average Per-Frame Error Rate Heatmap (w/ racket info)"
+        title="Average Per-Frame Error Rate Heatmap (w/ racket info)",
     )
