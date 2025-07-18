@@ -38,11 +38,11 @@ def save_stroke_postures_results(dataset, predictions, output_folder, logger):
 
 def make_image_key(video_id, timestamp):
     """Returns a unique identifier for a video id & timestamp."""
-    return "%s,%04d" % (video_id, int(timestamp))
+    return "%s,%05d" % (video_id, int(timestamp))
 
 
 def decode_image_key(image_key):
-    return image_key[:-5], image_key[-4:]
+    return image_key[:-6], image_key[-5:]
 
 
 def prepare_for_stroke_postures_detection(predictions, dataset):
@@ -101,7 +101,7 @@ def testlist_to_dict(base_path):
 
 def write_csv(ava_results, csv_result_file, logger):
     print(csv_result_file)
-    dict_data = testlist_to_dict(csv_result_file.split("/")[0] + "/stroke_postures/annotations")
+    dict_data = testlist_to_dict(csv_result_file.split("/")[0] + "/stroke_postures_pred/annotations")
     start = time.time()
     with open(csv_result_file, "w") as csv_file:
         spamwriter = csv.writer(csv_file, delimiter=",")
@@ -131,7 +131,7 @@ def write_csv(ava_results, csv_result_file, logger):
 
 def write_top1_action_by_frame_confusion_matrix_csv(ava_results, csv_result_file, logger, dataset):
     print(csv_result_file)
-    dict_data = testlist_to_dict(csv_result_file.split("/")[0] + "/stroke_postures/annotations")
+    dict_data = testlist_to_dict(csv_result_file.split("/")[0] + "/stroke_postures_pred/annotations")
 
     # 提取資料集中的 distinct 類別數量
     num_classes = len(

@@ -74,7 +74,7 @@ class NpBoxDict(object):
                 for video_k in video_key_list:
                     video_value_lists = {field: [] for field in value_fields if field != "video_keypoints"}
                     box_infos = video_id_to_box_dict[video_k]
-                    assert len(box_infos) > 0
+                    # assert len(box_infos) > 0
                     for box_info in box_infos:
                         for field in video_value_lists:
                             video_value_lists[field].append(box_info[field])
@@ -426,8 +426,9 @@ class DatasetEngine(data.Dataset):
         for video_keypoints_list in video_keypoints_lists:
             all_video_keypoint = []
             for video_k in video_keypoints_list:
-                video_keypoints = np.squeeze(np.array(video_k["keypoints"][0]))
-                all_video_keypoint.append(video_keypoints)
+                if video_k["keypoints"]:
+                    video_keypoints = np.squeeze(np.array(video_k["keypoints"][0]))
+                    all_video_keypoint.append(video_keypoints)
             if len(all_video_keypoint) == 0:
                 if not generate_dataset:
                     all_video_keypoint = np.zeros((self.frame_span, 17, 3))
