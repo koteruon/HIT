@@ -4,7 +4,7 @@ import os
 
 
 class DatasetCatalog(object):
-    DATA_DIR = "/home/siplab5/chaoen/yoloNhit_calvin/HIT_B2C/data"
+    DATA_DIR = "/home/siplab5/chaoen/yoloNhit_calvin/HIT_B2C_jhmdb/data"
     DATASETS = {
         "table_tennis_train": {
             "video_root": "table_tennis/clips/train",
