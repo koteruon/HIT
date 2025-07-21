@@ -269,7 +269,7 @@ class DatasetEngine(data.Dataset):
 
         self.movies_action_gt = NpInfoDict(movies_action, value_type=np.int32)
 
-        self.make_skateformer_dataset(is_train)
+        # self.make_skateformer_dataset(is_train)
 
     def make_skateformer_dataset(self, is_train):
         import json
